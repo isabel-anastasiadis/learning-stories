@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Learning Story</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 <style>
@@ -23,7 +24,7 @@
     margin: 0; padding: 0;
     background: var(--bg);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   body { padding: 20px 16px 60px; max-width: 560px; margin: 0 auto; }
@@ -33,8 +34,8 @@
     margin-bottom: 4px;
   }
   .brand-mark {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 26px; font-weight: 700; color: var(--sage-dark);
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 28px; font-weight: 700; color: var(--sage-dark);
   }
   .brand-sub {
     font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase;
@@ -98,6 +99,38 @@
 
   .status { text-align: center; font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; min-height: 18px; }
 
+  .goal-search-wrap { position: relative; }
+  .goal-search-wrap input[type="text"] { padding-left: 34px; }
+  .goal-search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 14px; color: var(--ink-soft); pointer-events: none;
+  }
+  .goal-results {
+    margin-top: 8px; display: flex; flex-direction: column; gap: 6px;
+    max-height: 260px; overflow-y: auto;
+  }
+  .goal-result {
+    text-align: left; width: 100%; background: var(--card); cursor: pointer;
+    border-left-width: 4px; border-left-style: solid; border-top: 1px solid var(--line);
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    border-radius: 0 8px 8px 0; padding: 8px 10px; font-family: inherit;
+  }
+  .goal-result:active { background: #F1EDE3; }
+  .goal-result.selected { opacity: 0.45; }
+  .goal-result-title { font-size: 12px; font-weight: 700; margin: 0 0 3px; }
+  .goal-result-text { font-size: 12.5px; color: var(--ink); margin: 0 0 3px; line-height: 1.4; }
+  .goal-result-outcome { font-size: 11.5px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
+
+  .goal-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .goal-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #E9EFE6; color: var(--sage-dark);
+    font-size: 12.5px; font-weight: 600; padding: 6px 6px 6px 11px; border-radius: 16px;
+    border: none; cursor: pointer; font-family: inherit;
+  }
+  .goal-chip .x { font-size: 15px; line-height: 1; }
+  .goal-empty-hint { font-size: 12.5px; color: var(--ink-soft); padding: 6px 2px; }
+
   #preview-page { display: none; }
 </style>
 </head>
@@ -145,6 +178,16 @@
     <div class="hint">Tip: tap the field, then tap the microphone icon on your keyboard to dictate.</div>
   </div>
 
+  <div class="field">
+    <label for="goal-search">Whāriki goals</label>
+    <div class="goal-search-wrap">
+      <span class="goal-search-icon">🔍</span>
+      <input type="text" id="goal-search" placeholder="Search by strand or goal, e.g. belonging, safe, creative">
+    </div>
+    <div class="goal-results" id="goal-results"></div>
+    <div class="goal-chips" id="goal-chips"></div>
+  </div>
+
   <button class="generate-btn" id="generate-btn">Create Word Document</button>
   <div class="status" id="status"></div>
 
@@ -187,6 +230,126 @@
     photoPicker.classList.remove('has-photo');
   });
 
+  const WHARIKI_GOALS = [
+    { id: 'wb1', strand: 'Wellbeing', maori: 'Mana Atua', goal: 1, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
+      text: 'Children experience an environment where their health is promoted.',
+      outcome: 'Increasingly capable of keeping themselves healthy and caring for themselves | te oranga nui' },
+    { id: 'wb2', strand: 'Wellbeing', maori: 'Mana Atua', goal: 2, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
+      text: 'Children experience an environment where their emotional wellbeing is nurtured.',
+      outcome: 'Increasingly capable of managing themselves and expressing their feelings and needs | te whakahua whakaaro' },
+    { id: 'wb3', strand: 'Wellbeing', maori: 'Mana Atua', goal: 3, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
+      text: 'Children experience an environment where they are kept safe from harm.',
+      outcome: 'Increasingly capable of keeping themselves and others safe from harm | te noho haumaru' },
+
+    { id: 'bl1', strand: 'Belonging', maori: 'Mana Whenua', goal: 1, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
+      text: 'Children and their families experience an environment where connecting links with the family and the wider world are affirmed and extended.',
+      outcome: 'Increasingly capable of making connections between people, places and things in their world | te waihanga hononga' },
+    { id: 'bl2', strand: 'Belonging', maori: 'Mana Whenua', goal: 2, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
+      text: 'Children and their families experience an environment where they know that they have a place.',
+      outcome: 'Increasingly capable of taking part in caring for this place | te manaaki i te taiao' },
+    { id: 'bl3', strand: 'Belonging', maori: 'Mana Whenua', goal: 3, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
+      text: 'Children and their families experience an environment where they feel comfortable with the routines, customs and regular events.',
+      outcome: 'Increasingly capable of understanding how things work here and adapting to change | te mārama ki te āhua o ngā whakahaere me te mōhio ki te panoni' },
+    { id: 'bl4', strand: 'Belonging', maori: 'Mana Whenua', goal: 4, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
+      text: 'Children and their families experience an environment where they know the limits and boundaries of acceptable behaviour.',
+      outcome: 'Increasingly capable of showing respect for kaupapa, rules and the rights of others | te mahi whakaute' },
+
+    { id: 'co1', strand: 'Contribution', maori: 'Mana Tangata', goal: 1, colorFill: 'FAEEDA', colorBorder: 'EF9F27', colorText: '854F0B',
+      text: 'Children experience an environment where there are equitable opportunities for learning, irrespective of gender, ability, age, ethnicity or background.',
+      outcome: 'Increasingly capable of treating others fairly and including them in play | te ngākau makuru' },
+    { id: 'co2', strand: 'Contribution', maori: 'Mana Tangata', goal: 2, colorFill: 'FAEEDA', colorBorder: 'EF9F27', colorText: '854F0B',
+      text: 'Children experience an environment where they are affirmed as individuals.',
+      outcome: 'Increasingly capable of recognising and appreciating their own ability to learn | te rangatiratanga' },
+    { id: 'co3', strand: 'Contribution', maori: 'Mana Tangata', goal: 3, colorFill: 'FAEEDA', colorBorder: 'EF9F27', colorText: '854F0B',
+      text: 'Children experience an environment where they are encouraged to learn with and alongside others.',
+      outcome: 'Increasingly capable of using a range of strategies and skills to play and learn with others | te ngākau aroha' },
+
+    { id: 'cm1', strand: 'Communication', maori: 'Mana Reo', goal: 1, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
+      text: 'Children experience an environment where they develop non-verbal communication skills for a range of purposes.',
+      outcome: 'Increasingly capable of using gesture and movement to express themselves | he kōrero ā-tinana' },
+    { id: 'cm2', strand: 'Communication', maori: 'Mana Reo', goal: 2, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
+      text: 'Children experience an environment where they develop verbal communication skills for a range of purposes.',
+      outcome: 'Increasingly capable of understanding oral language and using it for a range of purposes | he kōrero ā-waha' },
+    { id: 'cm3', strand: 'Communication', maori: 'Mana Reo', goal: 3, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
+      text: 'Children experience an environment where they experience the stories and symbols of their own and other cultures.',
+      outcome: 'Increasingly capable of enjoying stories, recognising print symbols, or recognising mathematical symbols and concepts | he kōrero paki / he kōrero tuhituhi / he kōrero pāngarau' },
+    { id: 'cm4', strand: 'Communication', maori: 'Mana Reo', goal: 4, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
+      text: 'Children experience an environment where they discover different ways to be creative and expressive.',
+      outcome: 'Increasingly capable of expressing their feelings and ideas using a wide range of materials and modes | he kōrero auaha' },
+
+    { id: 'ex1', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 1, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
+      text: 'Children experience an environment where their play is valued as meaningful learning and the importance of spontaneous play is recognised.',
+      outcome: 'Increasingly capable of playing, imagining, inventing and experimenting | te whakaaro me te tūhurahura i te pūtaiao' },
+    { id: 'ex2', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 2, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
+      text: 'Children experience an environment where they gain confidence in and control of their bodies.',
+      outcome: 'Increasingly capable of moving confidently and challenging themselves physically | te wero ā-tinana' },
+    { id: 'ex3', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 3, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
+      text: 'Children experience an environment where they learn strategies for active exploration, thinking and reasoning.',
+      outcome: 'Increasingly capable of using a range of strategies for reasoning and problem solving | te hīraurau hopanga' },
+    { id: 'ex4', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 4, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
+      text: 'Children experience an environment where they develop working theories for making sense of the natural, social, physical and material worlds.',
+      outcome: 'Increasingly capable of making sense of their worlds by generating and refining working theories | te rangahau me te mātauranga' }
+  ];
+
+  const selectedGoalIds = [];
+  const goalSearchInput = document.getElementById('goal-search');
+  const goalResultsEl = document.getElementById('goal-results');
+  const goalChipsEl = document.getElementById('goal-chips');
+
+  function goalMatches(g, query) {
+    const q = query.toLowerCase();
+    return g.strand.toLowerCase().includes(q) ||
+           g.maori.toLowerCase().includes(q) ||
+           g.text.toLowerCase().includes(q) ||
+           g.outcome.toLowerCase().includes(q);
+  }
+
+  function renderGoalResults() {
+    const query = goalSearchInput.value.trim();
+    goalResultsEl.innerHTML = '';
+    if (!query) return;
+    const matches = WHARIKI_GOALS.filter(g => goalMatches(g, query)).slice(0, 12);
+    matches.forEach(g => {
+      const div = document.createElement('div');
+      const isSelected = selectedGoalIds.includes(g.id);
+      div.className = 'goal-result' + (isSelected ? ' selected' : '');
+      div.style.borderLeftColor = '#' + g.colorBorder;
+      div.innerHTML = `
+        <p class="goal-result-title" style="color:#${g.colorText}">${g.strand} · Goal ${g.goal}</p>
+        <p class="goal-result-text">${g.text}</p>
+        <p class="goal-result-outcome">${g.outcome}</p>
+      `;
+      div.addEventListener('click', () => {
+        if (!selectedGoalIds.includes(g.id)) {
+          selectedGoalIds.push(g.id);
+          renderGoalChips();
+          renderGoalResults();
+        }
+      });
+      goalResultsEl.appendChild(div);
+    });
+  }
+
+  function renderGoalChips() {
+    goalChipsEl.innerHTML = '';
+    selectedGoalIds.forEach(id => {
+      const g = WHARIKI_GOALS.find(x => x.id === id);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'goal-chip';
+      chip.innerHTML = `${g.strand} · Goal ${g.goal} <span class="x">×</span>`;
+      chip.addEventListener('click', () => {
+        const idx = selectedGoalIds.indexOf(id);
+        if (idx > -1) selectedGoalIds.splice(idx, 1);
+        renderGoalChips();
+        renderGoalResults();
+      });
+      goalChipsEl.appendChild(chip);
+    });
+  }
+
+  goalSearchInput.addEventListener('input', renderGoalResults);
+
   function loadImageDims(dataUrl) {
     return new Promise((resolve) => {
       const img = new Image();
@@ -209,7 +372,7 @@
   }
 
   async function buildDocxBlob() {
-    const { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel, AlignmentType } = window.docx;
+    const { Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType, BorderStyle } = window.docx;
 
     const title = document.getElementById('title').value.trim() || 'Learning Story';
     const observer = document.getElementById('observer').value.trim();
@@ -218,18 +381,18 @@
 
     const children = [
       new Paragraph({
-        heading: HeadingLevel.HEADING_1,
-        children: [new TextRun({ text: title })],
-        spacing: { after: 100 }
+        children: [new TextRun({ text: title, font: 'Baloo 2', bold: true, size: 56, color: '2E2A25' })],
+        spacing: { after: 80 }
       }),
       new Paragraph({
         children: [new TextRun({
           text: [observer ? `Observed by ${observer}` : '', dateStr].filter(Boolean).join('   •   '),
+          font: 'Nunito Sans',
           italics: true,
-          size: 20,
+          size: 24,
           color: '6B6459'
         })],
-        spacing: { after: 300 }
+        spacing: { after: 260 }
       })
     ];
 
@@ -245,7 +408,7 @@
       const bytes = await dataUrlToBytes(photoDataUrl);
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 300 },
+        spacing: { after: 260 },
         children: [new ImageRun({
           data: bytes,
           type: guessImageType(photoDataUrl),
@@ -257,13 +420,37 @@
     const noticeLines = notice.length ? notice.split(/\n/) : [''];
     noticeLines.forEach(line => {
       children.push(new Paragraph({
-        children: [new TextRun({ text: line, size: 24 })],
+        children: [new TextRun({ text: line, font: 'Nunito Sans', size: 30 })],
         spacing: { after: 120 }
       }));
     });
 
+    if (selectedGoalIds.length) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: 'Whāriki goals', font: 'Baloo 2', bold: true, size: 26, color: '52694F' })],
+        spacing: { before: 200, after: 120 }
+      }));
+      selectedGoalIds.forEach(id => {
+        const g = WHARIKI_GOALS.find(x => x.id === id);
+        const border = { style: BorderStyle.SINGLE, size: 6, color: g.colorBorder, space: 8 };
+        children.push(new Paragraph({
+          shading: { type: 'solid', color: g.colorFill, fill: g.colorFill },
+          border: { top: border, bottom: border, left: { ...border, size: 18 }, right: border },
+          spacing: { after: 100 },
+          children: [
+            new TextRun({ text: `${g.strand} | ${g.maori}: Goal ${g.goal}`, font: 'Nunito Sans', bold: true, size: 20, color: g.colorText }),
+            new TextRun({ text: '   ' + g.text, font: 'Nunito Sans', size: 20, color: '2E2A25', break: 1 }),
+            new TextRun({ text: 'Learning Outcome: ' + g.outcome, font: 'Nunito Sans', size: 18, italics: true, color: '6B6459', break: 1 })
+          ]
+        }));
+      });
+    }
+
     const doc = new Document({
-      sections: [{ properties: {}, children }]
+      sections: [{
+        properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } },
+        children
+      }]
     });
 
     return Packer.toBlob(doc);
@@ -292,6 +479,8 @@
         try {
           await navigator.share({ files: [file], title: title });
           status.textContent = 'Shared! Save it to Drive or Files.';
+          selectedGoalIds.length = 0;
+          renderGoalChips();
           btn.disabled = false;
           btn.textContent = 'Create Word Document';
           return;
@@ -303,6 +492,8 @@
       // Fallback: plain download
       saveAs(blob, filename);
       status.textContent = 'Downloaded. Look for it in Files, or share it from there.';
+      selectedGoalIds.length = 0;
+      renderGoalChips();
     } catch (err) {
       status.textContent = 'Something went wrong generating the document.';
       console.error(err);
