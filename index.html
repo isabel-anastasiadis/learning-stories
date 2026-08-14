@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Learning Story</title>
+<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<style>
+  :root{
+    --bg: #FBF7F0;
+    --card: #FFFFFF;
+    --ink: #2E2A25;
+    --ink-soft: #6B6459;
+    --sage: #6E8A6F;
+    --sage-dark: #52694F;
+    --kowhai: #E8B94B;
+    --line: #E7E0D3;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { padding: 20px 16px 60px; max-width: 560px; margin: 0 auto; }
+
+  .brand {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .brand-mark {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 26px; font-weight: 700; color: var(--sage-dark);
+  }
+  .brand-sub {
+    font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  p.tagline { margin: 0 0 22px; color: var(--ink-soft); font-size: 14px; }
+
+  .field { margin-bottom: 18px; }
+  label {
+    display: block; font-size: 12.5px; font-weight: 600;
+    letter-spacing: .02em; text-transform: uppercase;
+    color: var(--sage-dark); margin-bottom: 6px;
+  }
+  input[type="text"], textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 13px; font-size: 16px; font-family: inherit;
+    background: var(--card); color: var(--ink);
+  }
+  input[type="text"]:focus, textarea:focus {
+    outline: none; border-color: var(--sage);
+    box-shadow: 0 0 0 3px rgba(110,138,111,0.15);
+  }
+  textarea { min-height: 100px; resize: vertical; line-height: 1.45; }
+  .hint { font-size: 12.5px; color: var(--ink-soft); margin-top: 5px; }
+
+  .date-display {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 13px; font-size: 16px; color: var(--ink);
+  }
+
+  .photo-picker {
+    border: 1.5px dashed var(--line); border-radius: var(--radius);
+    background: var(--card); text-align: center; padding: 22px 14px;
+    position: relative; overflow: hidden;
+  }
+  .photo-picker.has-photo { padding: 0; border-style: solid; }
+  .photo-picker input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .photo-picker .placeholder { color: var(--ink-soft); font-size: 14.5px; pointer-events: none; }
+  .photo-picker .placeholder .icon { font-size: 26px; display: block; margin-bottom: 6px; }
+  .photo-picker img {
+    display: block; width: 100%; max-height: 260px; object-fit: contain;
+    background: #F1EDE3;
+  }
+  .photo-actions { display: none; padding: 10px 12px; }
+  .photo-picker.has-photo .photo-actions { display: block; }
+  .remove-photo {
+    background: none; border: none; color: var(--sage-dark); font-size: 13.5px;
+    font-weight: 600; padding: 0; cursor: pointer; text-decoration: underline;
+  }
+
+  .generate-btn {
+    width: 100%; padding: 15px; margin-top: 8px;
+    background: var(--sage-dark); color: #fff; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .generate-btn:active { background: #445a42; }
+  .generate-btn:disabled { background: #B9C4B6; cursor: not-allowed; }
+
+  .status { text-align: center; font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; min-height: 18px; }
+
+  #preview-page { display: none; }
+</style>
+</head>
+<body>
+
+  <div class="brand">
+    <span class="brand-mark">Kōrero</span>
+    <span class="brand-sub">Learning Story</span>
+  </div>
+  <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
+
+  <div class="field">
+    <label for="title">Title</label>
+    <input type="text" id="title" placeholder="e.g. Building the tallest tower">
+  </div>
+
+  <div class="field">
+    <label for="observer">Observed by</label>
+    <input type="text" id="observer" placeholder="Your name">
+  </div>
+
+  <div class="field">
+    <label>Date</label>
+    <div class="date-display" id="date-display"></div>
+  </div>
+
+  <div class="field">
+    <label>Photo</label>
+    <div class="photo-picker" id="photo-picker">
+      <input type="file" id="photo-input" accept="image/*">
+      <div class="placeholder" id="photo-placeholder">
+        <span class="icon">📷</span>
+        Tap to choose or take a photo
+      </div>
+      <img id="photo-preview" style="display:none;">
+      <div class="photo-actions">
+        <button type="button" class="remove-photo" id="remove-photo">Remove photo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="notice">What did I notice?</label>
+    <textarea id="notice" placeholder="Tap here, then use the mic on your keyboard to talk it out"></textarea>
+    <div class="hint">Tip: tap the field, then tap the microphone icon on your keyboard to dictate.</div>
+  </div>
+
+  <button class="generate-btn" id="generate-btn">Create Word Document</button>
+  <div class="status" id="status"></div>
+
+  <div id="preview-page"></div>
+
+<script>
+  const dateDisplay = document.getElementById('date-display');
+  const today = new Date();
+  dateDisplay.textContent = today.toLocaleDateString('en-NZ', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  const photoInput = document.getElementById('photo-input');
+  const photoPicker = document.getElementById('photo-picker');
+  const photoPlaceholder = document.getElementById('photo-placeholder');
+  const photoPreview = document.getElementById('photo-preview');
+  const removePhotoBtn = document.getElementById('remove-photo');
+  let photoDataUrl = null;
+
+  photoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      photoDataUrl = evt.target.result;
+      photoPreview.src = photoDataUrl;
+      photoPreview.style.display = 'block';
+      photoPlaceholder.style.display = 'none';
+      photoPicker.classList.add('has-photo');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  removePhotoBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    photoDataUrl = null;
+    photoInput.value = '';
+    photoPreview.style.display = 'none';
+    photoPlaceholder.style.display = 'block';
+    photoPicker.classList.remove('has-photo');
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function buildDocumentHtml() {
+    const title = document.getElementById('title').value.trim() || 'Learning Story';
+    const observer = document.getElementById('observer').value.trim();
+    const dateStr = dateDisplay.textContent;
+    const notice = document.getElementById('notice').value.trim();
+
+    const photoBlock = photoDataUrl
+      ? `<img src="${photoDataUrl}" style="max-height:250px; max-width:100%; display:block; margin: 0 auto 20px auto;">`
+      : '';
+
+    const metaLine = [observer ? `Observed by ${escapeHtml(observer)}` : '', dateStr]
+      .filter(Boolean).join(' &nbsp;&middot;&nbsp; ');
+
+    return `
+      <div style="font-family: Georgia, 'Times New Roman', serif; max-width: 700px; margin: 0 auto; padding: 20px;">
+        <h1 style="font-size: 26px; margin: 0 0 6px 0; color: #2E2A25;">${escapeHtml(title)}</h1>
+        <p style="font-size: 13px; color: #6B6459; margin: 0 0 22px 0; font-family: Arial, sans-serif;">${metaLine}</p>
+        ${photoBlock}
+        <p style="font-size: 15px; line-height: 1.6; color: #2E2A25; white-space: pre-wrap;">${escapeHtml(notice)}</p>
+      </div>
+    `;
+  }
+
+  document.getElementById('generate-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('generate-btn');
+    const status = document.getElementById('status');
+    const title = document.getElementById('title').value.trim() || 'Learning Story';
+
+    btn.disabled = true;
+    btn.textContent = 'Building document…';
+    status.textContent = '';
+
+    try {
+      const contentHtml = buildDocumentHtml();
+      const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${contentHtml}</body></html>`;
+
+      const converted = window.htmlDocx.asBlob(fullHtml);
+
+      const observer = document.getElementById('observer').value.trim();
+      const dateForFilename = today.toLocaleDateString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ');
+      const safeTitle = title.replace(/[\\/:*?"<>|]/g, '');
+      const filename = `${safeTitle}${observer ? ' - ' + observer : ''} - ${dateForFilename}.docx`;
+
+      // Try native share sheet first (best on iPhone)
+      const file = new File([converted], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: title });
+          status.textContent = 'Shared! Save it to Drive or Files.';
+          btn.disabled = false;
+          btn.textContent = 'Create Word Document';
+          return;
+        } catch (shareErr) {
+          // user cancelled share sheet or it failed — fall through to download
+        }
+      }
+
+      // Fallback: plain download
+      saveAs(converted, filename);
+      status.textContent = 'Downloaded. Look for it in Files, or share it from there.';
+    } catch (err) {
+      status.textContent = 'Something went wrong generating the document.';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Word Document';
+    }
+  });
+</script>
+
+</body>
+</html>
