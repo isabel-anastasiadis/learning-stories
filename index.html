@@ -445,9 +445,7 @@
 
   async function buildDocxBlob() {
     const {
-      Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType, BorderStyle,
-      HorizontalPositionAlign, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom,
-      TextWrappingType, TextWrappingSide
+      Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType, BorderStyle
     } = window.docx;
 
     const title = document.getElementById('title').value.trim() || 'Learning Story';
@@ -476,35 +474,49 @@
       })
     ];
 
-    // --- floating photos, alternating left/right so text wraps around each ---
-    if (photos.length) {
-      const maxWidthPx = 220, maxHeightPx = 250;
-      const pxToEmu = 9525;
-      const gapEmu = 130000;
-      const runs = [];
-      for (let i = 0; i < photos.length; i++) {
-        const dataUrl = photos[i];
-        const dims = await loadImageDims(dataUrl);
-        const scale = Math.min(maxWidthPx / dims.width, maxHeightPx / dims.height, 1);
-        const w = Math.round(dims.width * scale);
-        const h = Math.round(dims.height * scale);
-        const bytes = await dataUrlToBytes(dataUrl);
-        const side = i % 2 === 0 ? HorizontalPositionAlign.LEFT : HorizontalPositionAlign.RIGHT;
-        const rowIndex = Math.floor(i / 2);
+    async function buildImageCell(dataUrl, widthPercent, maxWidthPx, maxHeightPx) {
+      const { TableCell, WidthType, VerticalAlign, BorderStyle: BS } = window.docx;
+      const dims = await loadImageDims(dataUrl);
+      const scale = Math.min(maxWidthPx / dims.width, maxHeightPx / dims.height, 1);
+      const w = Math.round(dims.width * scale);
+      const h = Math.round(dims.height * scale);
+      const bytes = await dataUrlToBytes(dataUrl);
+      const noBorder = { style: BS.NONE, size: 0, color: 'FFFFFF' };
+      return new TableCell({
+        width: { size: widthPercent, type: WidthType.PERCENTAGE },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+        margins: { top: 100, bottom: 100, left: 100, right: 100 },
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new ImageRun({ data: bytes, type: guessImageType(dataUrl), transformation: { width: w, height: h } })]
+        })]
+      });
+    }
 
-        runs.push(new ImageRun({
-          data: bytes,
-          type: guessImageType(dataUrl),
-          transformation: { width: w, height: h },
-          floating: {
-            horizontalPosition: { relative: HorizontalPositionRelativeFrom.COLUMN, align: side },
-            verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: rowIndex * (maxHeightPx * pxToEmu + gapEmu) },
-            wrap: { type: TextWrappingType.SQUARE, side: TextWrappingSide.BOTH_SIDES },
-            margins: { top: gapEmu, bottom: gapEmu, left: gapEmu, right: gapEmu }
-          }
-        }));
+    function chunk(arr, size) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    }
+
+    // --- photos, laid out in a simple grid (aspect-ratio preserved, no stretching) ---
+    if (photos.length) {
+      const { Table, TableRow, WidthType } = window.docx;
+      const photoRows = chunk(photos, photos.length === 3 ? 3 : 2);
+      const tableRows = [];
+      for (const row of photoRows) {
+        const widthPercent = 100 / row.length;
+        const maxWidthPx = row.length === 1 ? 480 : (row.length === 3 ? 200 : 280);
+        const cells = [];
+        for (const dataUrl of row) cells.push(await buildImageCell(dataUrl, widthPercent, maxWidthPx, 260));
+        tableRows.push(new TableRow({ children: cells }));
       }
-      children.push(new Paragraph({ children: runs, spacing: { after: 100 } }));
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: tableRows
+      }));
+      children.push(new Paragraph({ children: [], spacing: { after: 100 } }));
     }
 
     function pushLabelledText(label, text, labelColor) {
@@ -581,15 +593,9 @@
         return new TableRow({ children: cells });
       }
 
-      let rows;
-      if (goals.length === 4) {
-        rows = [buildRow(goals.slice(0, 2)), buildRow(goals.slice(2, 4))];
-      } else if (goals.length <= 3) {
-        rows = [buildRow(goals)];
-      } else {
-        rows = [];
-        for (let i = 0; i < goals.length; i += 3) rows.push(buildRow(goals.slice(i, i + 3)));
-      }
+      // max 2 goals per row — the actual goal/outcome sentences are long, and
+      // 3+ across made columns too narrow, forcing lots of line-wrap (tall/squashed boxes)
+      const rows = goals.length === 1 ? [buildRow(goals)] : chunk(goals, 2).map(buildRow);
 
       const tableWidth = goals.length === 1 ? 45 : 100;
       children.push(new Table({
