@@ -474,6 +474,14 @@
       })
     ];
 
+    // Absolute content width (twips) for A4 with 0.5in margins — used instead of
+    // percentage widths, since Google Docs' importer mishandles percentage-string
+    // table widths and collapses columns to near-zero.
+    const PAGE_WIDTH_TWIPS = 11906;
+    const MARGIN_TWIPS = 720;
+    const CONTENT_WIDTH_TWIPS = PAGE_WIDTH_TWIPS - MARGIN_TWIPS * 2;
+    function pctToDxa(percent) { return Math.round(CONTENT_WIDTH_TWIPS * percent / 100); }
+
     async function buildImageCell(dataUrl, widthPercent, maxWidthPx, maxHeightPx) {
       const { TableCell, WidthType, VerticalAlign, BorderStyle: BS } = window.docx;
       const dims = await loadImageDims(dataUrl);
@@ -483,7 +491,7 @@
       const bytes = await dataUrlToBytes(dataUrl);
       const noBorder = { style: BS.NONE, size: 0, color: 'FFFFFF' };
       return new TableCell({
-        width: { size: widthPercent, type: WidthType.PERCENTAGE },
+        width: { size: pctToDxa(widthPercent), type: WidthType.DXA },
         borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
         margins: { top: 100, bottom: 100, left: 100, right: 100 },
         verticalAlign: VerticalAlign.CENTER,
@@ -513,7 +521,7 @@
         tableRows.push(new TableRow({ children: cells }));
       }
       children.push(new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: CONTENT_WIDTH_TWIPS, type: WidthType.DXA },
         rows: tableRows
       }));
       children.push(new Paragraph({ children: [], spacing: { after: 100 } }));
@@ -553,7 +561,7 @@
         const border = { style: BorderStyle.SINGLE, size: 6, color: g.colorBorder };
         const leftBorder = { style: BorderStyle.SINGLE, size: 18, color: g.colorBorder };
         return new TableCell({
-          width: { size: widthPercent, type: WidthType.PERCENTAGE },
+          width: { size: pctToDxa(widthPercent), type: WidthType.DXA },
           shading: { type: 'solid', color: g.colorFill, fill: g.colorFill },
           borders: { top: border, bottom: border, left: leftBorder, right: border },
           margins: { top: 100, bottom: 100, left: 130, right: 130 },
@@ -576,7 +584,7 @@
 
       function makeSpacerCell(widthPercent) {
         return new TableCell({
-          width: { size: widthPercent, type: WidthType.PERCENTAGE },
+          width: { size: pctToDxa(widthPercent), type: WidthType.DXA },
           borders: noBorders,
           children: [new Paragraph({ children: [] })]
         });
@@ -597,9 +605,9 @@
       // 3+ across made columns too narrow, forcing lots of line-wrap (tall/squashed boxes)
       const rows = goals.length === 1 ? [buildRow(goals)] : chunk(goals, 2).map(buildRow);
 
-      const tableWidth = goals.length === 1 ? 45 : 100;
+      const tableWidth = goals.length === 1 ? pctToDxa(45) : CONTENT_WIDTH_TWIPS;
       children.push(new Table({
-        width: { size: tableWidth, type: WidthType.PERCENTAGE },
+        width: { size: tableWidth, type: WidthType.DXA },
         borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
         rows
       }));
@@ -607,7 +615,12 @@
 
     const doc = new Document({
       sections: [{
-        properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } },
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838 },
+            margin: { top: 720, bottom: 720, left: 720, right: 720 }
+          }
+        },
         children
       }]
     });
