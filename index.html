@@ -49,6 +49,12 @@
     letter-spacing: .02em; text-transform: uppercase;
     color: var(--sage-dark); margin-bottom: 6px;
   }
+  .optional-tag, .required-tag {
+    text-transform: none; letter-spacing: 0; font-weight: 500;
+    font-size: 11px; padding: 1px 7px; border-radius: 10px; margin-left: 2px;
+  }
+  .optional-tag { background: #EFEBE0; color: var(--ink-soft); }
+  .required-tag { background: #F3E3D9; color: #A05A2C; }
   input[type="text"], textarea {
     width: 100%; border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 13px; font-size: 16px; font-family: inherit;
@@ -61,9 +67,10 @@
   textarea { min-height: 100px; resize: vertical; line-height: 1.45; }
   .hint { font-size: 12.5px; color: var(--ink-soft); margin-top: 5px; }
 
-  .date-display {
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 13px; font-size: 16px; color: var(--ink);
+  input[type="date"] {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 13px; font-size: 16px; font-family: inherit;
+    background: var(--card); color: var(--ink);
   }
 
   .photo-grid {
@@ -158,7 +165,7 @@
   <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
 
   <div class="field">
-    <label>Photos</label>
+    <label>Photos <span class="optional-tag">optional</span></label>
     <div class="photo-grid" id="photo-grid"></div>
     <div class="add-photo-btn" id="add-photo-btn">
       <input type="file" id="photo-input" accept="image/*" multiple>
@@ -167,23 +174,23 @@
   </div>
 
   <div class="field">
-    <label for="notice">What did I notice?</label>
+    <label for="notice">What did I observe? <span class="optional-tag">optional</span></label>
     <textarea id="notice" placeholder="Tap here, then use the mic on your keyboard to talk it out"></textarea>
     <div class="hint">Tip: tap the field, then tap the microphone icon on your keyboard to dictate.</div>
   </div>
 
   <div class="field">
-    <label for="learning">What learning did I notice?</label>
+    <label for="learning">What learning did I notice? <span class="optional-tag">optional</span></label>
     <textarea id="learning" placeholder="What skills, ideas or dispositions were being developed?"></textarea>
   </div>
 
   <div class="field">
-    <label for="extend">How could we extend this next time?</label>
+    <label for="extend">How could we extend this next time? <span class="optional-tag">optional</span></label>
     <textarea id="extend" placeholder="Ideas for next steps"></textarea>
   </div>
 
   <div class="field">
-    <label for="goal-search">Whāriki goals</label>
+    <label for="goal-search">Whāriki goals <span class="optional-tag">optional</span></label>
     <div class="goal-search-wrap">
       <span class="goal-search-icon">🔍</span>
       <input type="text" id="goal-search" placeholder="Search by strand or goal, e.g. belonging, safe, creative">
@@ -194,22 +201,23 @@
   </div>
 
   <div class="field">
-    <label for="title">Title</label>
+    <label for="title">Title <span class="required-tag">required</span></label>
     <input type="text" id="title" placeholder="e.g. Building the tallest tower">
   </div>
 
   <div class="field">
-    <label for="observer">Observed by</label>
+    <label for="observer">Observed by <span class="required-tag">required</span></label>
     <input type="text" id="observer" placeholder="Your name">
   </div>
 
   <div class="field">
-    <label>Date</label>
-    <div class="date-display" id="date-display"></div>
+    <label for="date-input">Date</label>
+    <input type="date" id="date-input">
+    <div class="hint" id="date-preview"></div>
   </div>
 
   <div class="field">
-    <label for="children-names">Children's names</label>
+    <label for="children-names">Children's names <span class="optional-tag">optional</span></label>
     <input type="text" id="children-names" placeholder="e.g. Aroha, Tama">
   </div>
 
@@ -218,12 +226,27 @@
 
   <div id="preview-page"></div>
 
+
 <script>
-  const dateDisplay = document.getElementById('date-display');
+  const dateInput = document.getElementById('date-input');
+  const datePreview = document.getElementById('date-preview');
   const today = new Date();
-  dateDisplay.textContent = today.toLocaleDateString('en-NZ', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
+  // format as YYYY-MM-DD in LOCAL time (not UTC) for the date input's default value
+  const todayLocal = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  dateInput.value = todayLocal;
+
+  function formatDisplayDate(dateInputValue) {
+    // parse as local date (avoids the UTC off-by-one-day issue with new Date('YYYY-MM-DD'))
+    const [y, m, d] = dateInputValue.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function updateDatePreview() {
+    datePreview.textContent = dateInput.value ? formatDisplayDate(dateInput.value) : '';
+  }
+  updateDatePreview();
+  dateInput.addEventListener('input', updateDatePreview);
 
   const photoInput = document.getElementById('photo-input');
   const photoGrid = document.getElementById('photo-grid');
@@ -475,15 +498,17 @@
 
     const title = document.getElementById('title').value.trim() || 'Learning Story';
     const observer = document.getElementById('observer').value.trim();
-    const dateStr = dateDisplay.textContent;
+    const dateStr = formatDisplayDate(dateInput.value);
     const childrenNames = document.getElementById('children-names').value.trim();
     const notice = document.getElementById('notice').value.trim();
     const learning = document.getElementById('learning').value.trim();
     const extend = document.getElementById('extend').value.trim();
 
+    const HEADING_GREY = '5A554E';
+
     const children = [
       new Paragraph({
-        children: [new TextRun({ text: title, font: 'Baloo 2', bold: true, size: 56, color: '2E2A25' })],
+        children: [new TextRun({ text: title, font: 'Baloo 2', bold: true, size: 60, color: '2E2A25' })],
         spacing: { after: 80 }
       }),
       new Paragraph({
@@ -492,7 +517,7 @@
             .filter(Boolean).join('   •   '),
           font: 'Nunito Sans',
           italics: true,
-          size: 24,
+          size: 23,
           color: '6B6459'
         })],
         spacing: { after: 200 }
@@ -546,30 +571,25 @@
       }
     }
 
-    function pushLabelledText(label, text, labelColor) {
-      if (!text) return;
+    function pushLabelledText(label, text) {
       children.push(new Paragraph({
-        children: [new TextRun({ text: label, font: 'Baloo 2', bold: true, size: 24, color: labelColor })],
+        children: [new TextRun({ text: label, font: 'Baloo 2', bold: true, size: 24, color: HEADING_GREY })],
         spacing: { before: 160, after: 60 }
       }));
+      if (!text) return;
       text.split(/\n/).forEach(line => {
         children.push(new Paragraph({
-          children: [new TextRun({ text: line, font: 'Nunito Sans', size: 30 })],
+          children: [new TextRun({ text: line, font: 'Nunito Sans', size: 27 })],
           spacing: { after: 100 }
         }));
       });
     }
 
-    pushLabelledText('What did I notice?', notice, '52694F');
-    pushLabelledText('What learning did I notice?', learning, '52694F');
-    pushLabelledText('How could we extend this next time?', extend, '52694F');
+    pushLabelledText('What did I observe?', notice);
+    pushLabelledText('What learning did I notice?', learning);
+    pushLabelledText('How could we extend this next time?', extend);
 
     if (selectedGoalIds.length) {
-      children.push(new Paragraph({
-        children: [new TextRun({ text: 'Whāriki goals', font: 'Baloo 2', bold: true, size: 26, color: '52694F' })],
-        spacing: { before: 200, after: 120 }
-      }));
-
       const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
       goals.forEach(g => {
         const border = { style: BorderStyle.SINGLE, size: 6, color: g.colorBorder, space: 8 };
@@ -585,6 +605,11 @@
           ]
         }));
       });
+    } else {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: 'Whāriki goals', font: 'Baloo 2', bold: true, size: 26, color: HEADING_GREY })],
+        spacing: { before: 200, after: 120 }
+      }));
     }
 
     const doc = new Document({
@@ -615,7 +640,8 @@
       const blob = await buildDocxBlob();
 
       const observer = document.getElementById('observer').value.trim();
-      const dateForFilename = today.toLocaleDateString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ');
+      const [fy, fm, fd] = dateInput.value.split('-').map(Number);
+      const dateForFilename = new Date(fy, fm - 1, fd).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ');
       const safeTitle = title.replace(/[\\/:*?"<>|]/g, '');
       const filename = `${safeTitle}${observer ? ' - ' + observer : ''} - ${dateForFilename}.docx`;
 
