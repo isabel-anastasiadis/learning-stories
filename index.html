@@ -499,23 +499,50 @@
       })
     ];
 
-    // --- photos, stacked vertically as simple centered paragraphs ---
-    // (dropped the side-by-side table grid — Google Docs' table importer proved
-    // unreliable here twice over, even with spec-correct files; plain paragraphs
-    // are the layout type that's actually held up in testing)
+    // A4 content width in twips (0.5in margins each side) — used to size photo rows
+    const CONTENT_WIDTH_TWIPS = 11906 - 720 * 2;
+
+    // --- photos, floating side-by-side in rows with "break text" (top/bottom) wrap ---
+    // text stops above the row and resumes below, rather than hugging the sides —
+    // simpler and more robust than left/right wrap, and matches Google Docs' own
+    // "Break text" option. Images stay draggable/rearrangeable afterwards.
     if (photos.length) {
-      const maxWidthPx = 380, maxHeightPx = 300;
-      for (const dataUrl of photos) {
-        const dims = await loadImageDims(dataUrl);
-        const scale = Math.min(maxWidthPx / dims.width, maxHeightPx / dims.height, 1);
-        const w = Math.round(dims.width * scale);
-        const h = Math.round(dims.height * scale);
-        const bytes = await dataUrlToBytes(dataUrl);
-        children.push(new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 160 },
-          children: [new ImageRun({ data: bytes, type: guessImageType(dataUrl), transformation: { width: w, height: h } })]
-        }));
+      const { HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType } = window.docx;
+      const pxToEmu = 9525;
+      const gapPx = 14;
+      const contentWidthPx = Math.round(CONTENT_WIDTH_TWIPS / 1440 * 96);
+
+      function chunk(arr, size) {
+        const out = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+      }
+
+      const rows = chunk(photos, 3);
+      for (const row of rows) {
+        const rowMaxWidthPx = (contentWidthPx - gapPx * (row.length - 1)) / row.length;
+        let cumulativeOffsetEmu = 0;
+        const runs = [];
+        for (const dataUrl of row) {
+          const dims = await loadImageDims(dataUrl);
+          const scale = Math.min(rowMaxWidthPx / dims.width, 260 / dims.height, 1);
+          const w = Math.round(dims.width * scale);
+          const h = Math.round(dims.height * scale);
+          const bytes = await dataUrlToBytes(dataUrl);
+          runs.push(new ImageRun({
+            data: bytes,
+            type: guessImageType(dataUrl),
+            transformation: { width: w, height: h },
+            floating: {
+              horizontalPosition: { relative: HorizontalPositionRelativeFrom.COLUMN, offset: cumulativeOffsetEmu },
+              verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: 0 },
+              wrap: { type: TextWrappingType.TOP_AND_BOTTOM },
+              margins: { top: 45000, bottom: 90000, left: 30000, right: 30000 }
+            }
+          }));
+          cumulativeOffsetEmu += w * pxToEmu + gapPx * pxToEmu;
+        }
+        children.push(new Paragraph({ children: runs, spacing: { after: 100 } }));
       }
     }
 
