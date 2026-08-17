@@ -91,11 +91,11 @@
   .photo-add-row { display: flex; gap: 8px; }
   .add-photo-btn {
     flex: 1;
-    border: none; border-radius: var(--radius);
-    background: var(--sage-dark); text-align: center; padding: 14px 10px;
-    position: relative; color: #fff; font-size: 13.5px; font-weight: 700;
+    border: 1.5px solid var(--sage-dark); border-radius: var(--radius);
+    background: var(--card); text-align: center; padding: 13px 10px;
+    position: relative; color: var(--sage-dark); font-size: 13.5px; font-weight: 700;
   }
-  .add-photo-btn:active { background: #445a42; }
+  .add-photo-btn:active { background: #EEF1EA; }
   .add-photo-btn input[type="file"] {
     position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
   }
@@ -112,11 +112,25 @@
   .status { text-align: center; font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; min-height: 18px; }
 
   .browse-toggle {
-    width: 100%; background: var(--card); border: 1px solid var(--line);
-    color: var(--sage-dark); font-size: 13.5px; font-weight: 700;
-    padding: 12px; border-radius: 10px; cursor: pointer; font-family: inherit;
+    width: 100%; background: var(--card); border: 1.5px solid var(--line);
+    color: var(--ink); font-size: 13.5px; font-weight: 700;
+    padding: 12px 14px; border-radius: 10px; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: space-between;
   }
-  .browse-toggle.active { background: var(--sage-dark); color: #fff; border-color: var(--sage-dark); }
+  .browse-toggle.active { border-color: var(--sage-dark); background: #EEF1EA; color: var(--sage-dark); }
+  .chevron { display: inline-block; transition: transform 0.2s ease; font-size: 14px; }
+  .chevron.open { transform: rotate(180deg); }
+
+  .field-details { margin-bottom: 18px; }
+  .field-details summary {
+    cursor: pointer; list-style: revert; color: var(--ink-soft);
+    font-size: 13.5px; font-weight: 400; padding: 4px 0;
+  }
+  .field-details summary:hover { color: var(--sage-dark); }
+  .field-details summary::marker { color: var(--ink-soft); }
+  .field-details[open] summary { margin-bottom: 12px; color: var(--sage-dark); }
+  .details-body .field:first-child { margin-top: 4px; }
+
   .goal-strand-header {
     display: flex; justify-content: space-between; align-items: center;
     padding: 10px 12px; background: var(--card); border: 1px solid var(--line);
@@ -137,15 +151,15 @@
   .goal-result-text { font-size: 12.5px; color: var(--ink); margin: 0 0 3px; line-height: 1.4; }
   .goal-result-outcome { font-size: 11.5px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
 
-  .goal-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .goal-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .goal-chip {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    border-left-width: 4px; border-left-style: solid;
+    display: inline-flex; align-items: center; gap: 6px;
+    border-left-width: 3px; border-left-style: solid;
     border-top: 1px solid rgba(0,0,0,0.06); border-right: 1px solid rgba(0,0,0,0.06); border-bottom: 1px solid rgba(0,0,0,0.06);
-    font-size: 12.5px; font-weight: 700; padding: 8px 10px; border-radius: 0 8px 8px 0;
+    font-size: 12px; font-weight: 700; padding: 5px 8px 5px 9px; border-radius: 14px;
     cursor: pointer; font-family: inherit;
   }
-  .goal-chip .x { font-size: 15px; line-height: 1; flex-shrink: 0; }
+  .goal-chip .x { font-size: 14px; line-height: 1; flex-shrink: 0; }
   .goal-empty-hint { font-size: 12.5px; color: var(--ink-soft); padding: 6px 2px; }
 
   #preview-page { display: none; }
@@ -175,35 +189,42 @@
   </div>
 
   <div class="field">
+    <label for="children-names">Children's names <span class="optional-tag">optional</span></label>
+    <input type="text" id="children-names" placeholder="e.g. Aroha, Tama">
+  </div>
+
+  <div class="field">
     <label for="notice">What did I observe? <span class="optional-tag">optional</span></label>
     <textarea id="notice" placeholder="Tap here, then use the mic on your keyboard to talk it out"></textarea>
     <div class="hint">Tip: tap the field, then tap the microphone icon on your keyboard to dictate.</div>
   </div>
 
-  <div class="field">
-    <label for="learning">What learning did I notice? <span class="optional-tag">optional</span></label>
-    <textarea id="learning" placeholder="What skills, ideas or dispositions were being developed?"></textarea>
-  </div>
-
-  <div class="field">
-    <label for="extend">How could we extend this next time? <span class="optional-tag">optional</span></label>
-    <textarea id="extend" placeholder="Ideas for next steps"></textarea>
-  </div>
+  <details class="field-details">
+    <summary>Learning &amp; extension <span class="optional-tag">optional</span></summary>
+    <div class="details-body">
+      <div class="field">
+        <label for="learning">What learning did I notice?</label>
+        <textarea id="learning" placeholder="What skills, ideas or dispositions were being developed?"></textarea>
+      </div>
+      <div class="field" style="margin-bottom: 0;">
+        <label for="extend">How could we extend this next time?</label>
+        <textarea id="extend" placeholder="Ideas for next steps"></textarea>
+      </div>
+    </div>
+  </details>
 
   <div class="field">
     <label>Whāriki goals <span class="optional-tag">optional</span></label>
-    <button type="button" class="browse-toggle" id="browse-toggle">Browse all goals</button>
+    <button type="button" class="browse-toggle" id="browse-toggle">
+      <span>Browse all goals</span>
+      <span class="chevron" id="browse-chevron">▾</span>
+    </button>
     <div class="goal-results" id="goal-results"></div>
     <div class="goal-chips" id="goal-chips"></div>
   </div>
 
   <div class="field">
-    <label for="title">Title <span class="required-tag">required</span></label>
-    <input type="text" id="title" placeholder="e.g. Building the tallest tower">
-  </div>
-
-  <div class="field">
-    <label for="observer">Observed by <span class="required-tag">required</span></label>
+    <label for="observer">Observed by <span class="optional-tag">optional</span></label>
     <input type="text" id="observer" placeholder="Your name">
   </div>
 
@@ -214,8 +235,8 @@
   </div>
 
   <div class="field">
-    <label for="children-names">Children's names <span class="optional-tag">optional</span></label>
-    <input type="text" id="children-names" placeholder="e.g. Aroha, Tama">
+    <label for="title">Title <span class="required-tag">required</span></label>
+    <input type="text" id="title" placeholder="e.g. Building the tallest tower">
   </div>
 
   <button class="generate-btn" id="generate-btn">Create Word Document</button>
@@ -375,7 +396,7 @@
   const goalChipsEl = document.getElementById('goal-chips');
   const browseToggle = document.getElementById('browse-toggle');
   let browseOpen = false;
-  const expandedStrands = new Set();
+  let expandedStrand = null;
 
   function makeGoalResultEl(g) {
     const div = document.createElement('div');
@@ -409,11 +430,10 @@
       header.style.borderLeftColor = '#' + strandGoals[0].colorBorder;
       header.style.borderLeftWidth = '4px';
       header.style.borderLeftStyle = 'solid';
-      const isOpen = expandedStrands.has(strand);
+      const isOpen = expandedStrand === strand;
       header.innerHTML = `<span>${strand}</span><span>${isOpen ? '−' : '+'}</span>`;
       header.addEventListener('click', () => {
-        if (expandedStrands.has(strand)) expandedStrands.delete(strand);
-        else expandedStrands.add(strand);
+        expandedStrand = isOpen ? null : strand;
         renderGoalResults();
       });
       goalResultsEl.appendChild(header);
@@ -426,11 +446,12 @@
     });
   }
 
+  const browseChevron = document.getElementById('browse-chevron');
   browseToggle.addEventListener('click', () => {
     browseOpen = !browseOpen;
     browseToggle.classList.toggle('active', browseOpen);
-    browseToggle.textContent = browseOpen ? 'Close' : 'Browse all goals';
-    if (!browseOpen) expandedStrands.clear();
+    browseChevron.classList.toggle('open', browseOpen);
+    if (!browseOpen) expandedStrand = null;
     renderGoalResults();
   });
 
@@ -598,7 +619,7 @@
       return out;
     }
 
-    const title = document.getElementById('title').value.trim() || 'Learning Story';
+    const title = getEffectiveTitle();
     const observer = document.getElementById('observer').value.trim();
     const dateStr = formatDisplayDate(dateInput.value);
     const childrenNames = document.getElementById('children-names').value.trim();
@@ -610,7 +631,7 @@
 
     const children = [
       new Paragraph({
-        children: [new TextRun({ text: title, font: 'Baloo 2', bold: true, size: 60, color: '2E2A25' })],
+        children: [new TextRun({ text: title, font: 'Baloo 2', bold: true, size: 80, color: '2E2A25' })],
         spacing: { after: 80 }
       }),
       new Paragraph({
@@ -619,7 +640,7 @@
             .filter(Boolean).join('   •   '),
           font: 'Nunito Sans',
           italics: true,
-          size: 23,
+          size: 30,
           color: '6B6459'
         })],
         spacing: { after: 200 }
@@ -653,7 +674,7 @@
       if (!text) return;
       text.split(/\n/).forEach(line => {
         children.push(new Paragraph({
-          children: [new TextRun({ text: line, font: 'Nunito Sans', size: 27 })],
+          children: [new TextRun({ text: line, font: 'Nunito Sans', size: 36 })],
           spacing: { after: 100 }
         }));
       });
@@ -702,10 +723,22 @@
     return Packer.toBlob(doc);
   }
 
+  function getEffectiveTitle() {
+    return document.getElementById('title').value.trim();
+  }
+
   document.getElementById('generate-btn').addEventListener('click', async () => {
     const btn = document.getElementById('generate-btn');
     const status = document.getElementById('status');
-    const title = document.getElementById('title').value.trim() || 'Learning Story';
+    const titleField = document.getElementById('title');
+    const title = getEffectiveTitle();
+
+    if (!title) {
+      status.textContent = 'Please add a title before creating the document.';
+      titleField.focus();
+      titleField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     btn.disabled = true;
     btn.textContent = 'Building document…';
