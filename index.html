@@ -91,10 +91,11 @@
   .photo-add-row { display: flex; gap: 8px; }
   .add-photo-btn {
     flex: 1;
-    border: 1.5px dashed var(--line); border-radius: var(--radius);
-    background: var(--card); text-align: center; padding: 16px 10px;
-    position: relative; color: var(--ink-soft); font-size: 13.5px;
+    border: none; border-radius: var(--radius);
+    background: var(--sage-dark); text-align: center; padding: 14px 10px;
+    position: relative; color: #fff; font-size: 13.5px; font-weight: 700;
   }
+  .add-photo-btn:active { background: #445a42; }
   .add-photo-btn input[type="file"] {
     position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
   }
@@ -110,29 +111,20 @@
 
   .status { text-align: center; font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; min-height: 18px; }
 
-  .goal-search-wrap { position: relative; display: flex; align-items: center; gap: 8px; }
-  .goal-search-wrap input[type="text"] { padding-left: 34px; flex: 1; }
-  .goal-search-icon {
-    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-    font-size: 14px; color: var(--ink-soft); pointer-events: none;
-  }
   .browse-toggle {
-    flex-shrink: 0; background: var(--card); border: 1px solid var(--line);
-    color: var(--sage-dark); font-size: 12.5px; font-weight: 700;
-    padding: 12px 12px; border-radius: 10px; cursor: pointer; font-family: inherit;
+    width: 100%; background: var(--card); border: 1px solid var(--line);
+    color: var(--sage-dark); font-size: 13.5px; font-weight: 700;
+    padding: 12px; border-radius: 10px; cursor: pointer; font-family: inherit;
   }
   .browse-toggle.active { background: var(--sage-dark); color: #fff; border-color: var(--sage-dark); }
   .goal-strand-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 10px; background: var(--card); border: 1px solid var(--line);
-    border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12.5px;
-    margin-top: 6px;
+    padding: 10px 12px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px;
+    margin-top: 8px;
   }
   .goal-strand-goals { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-  .goal-results {
-    margin-top: 8px; display: flex; flex-direction: column; gap: 6px;
-    max-height: 260px; overflow-y: auto;
-  }
+  .goal-results { margin-top: 8px; display: flex; flex-direction: column; }
   .goal-result {
     text-align: left; width: 100%; background: var(--card); cursor: pointer;
     border-left-width: 4px; border-left-style: solid; border-top: 1px solid var(--line);
@@ -145,14 +137,15 @@
   .goal-result-text { font-size: 12.5px; color: var(--ink); margin: 0 0 3px; line-height: 1.4; }
   .goal-result-outcome { font-size: 11.5px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
 
-  .goal-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .goal-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
   .goal-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: #E9EFE6; color: var(--sage-dark);
-    font-size: 12.5px; font-weight: 600; padding: 6px 6px 6px 11px; border-radius: 16px;
-    border: none; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border-left-width: 4px; border-left-style: solid;
+    border-top: 1px solid rgba(0,0,0,0.06); border-right: 1px solid rgba(0,0,0,0.06); border-bottom: 1px solid rgba(0,0,0,0.06);
+    font-size: 12.5px; font-weight: 700; padding: 8px 10px; border-radius: 0 8px 8px 0;
+    cursor: pointer; font-family: inherit;
   }
-  .goal-chip .x { font-size: 15px; line-height: 1; }
+  .goal-chip .x { font-size: 15px; line-height: 1; flex-shrink: 0; }
   .goal-empty-hint { font-size: 12.5px; color: var(--ink-soft); padding: 6px 2px; }
 
   #preview-page { display: none; }
@@ -198,12 +191,8 @@
   </div>
 
   <div class="field">
-    <label for="goal-search">Whāriki goals <span class="optional-tag">optional</span></label>
-    <div class="goal-search-wrap">
-      <span class="goal-search-icon">🔍</span>
-      <input type="text" id="goal-search" placeholder="Search by strand or goal, e.g. belonging, safe, creative">
-      <button type="button" class="browse-toggle" id="browse-toggle">Browse all</button>
-    </div>
+    <label>Whāriki goals <span class="optional-tag">optional</span></label>
+    <button type="button" class="browse-toggle" id="browse-toggle">Browse all goals</button>
     <div class="goal-results" id="goal-results"></div>
     <div class="goal-chips" id="goal-chips"></div>
   </div>
@@ -382,20 +371,11 @@
   ];
 
   const selectedGoalIds = [];
-  const goalSearchInput = document.getElementById('goal-search');
   const goalResultsEl = document.getElementById('goal-results');
   const goalChipsEl = document.getElementById('goal-chips');
   const browseToggle = document.getElementById('browse-toggle');
-  let browseMode = false;
+  let browseOpen = false;
   const expandedStrands = new Set();
-
-  function goalMatches(g, query) {
-    const q = query.toLowerCase();
-    return g.strand.toLowerCase().includes(q) ||
-           g.maori.toLowerCase().includes(q) ||
-           g.text.toLowerCase().includes(q) ||
-           g.outcome.toLowerCase().includes(q);
-  }
 
   function makeGoalResultEl(g) {
     const div = document.createElement('div');
@@ -419,45 +399,38 @@
 
   function renderGoalResults() {
     goalResultsEl.innerHTML = '';
+    if (!browseOpen) return;
 
-    if (browseMode) {
-      const strands = [...new Set(WHARIKI_GOALS.map(g => g.strand))];
-      strands.forEach(strand => {
-        const strandGoals = WHARIKI_GOALS.filter(g => g.strand === strand);
-        const header = document.createElement('div');
-        header.className = 'goal-strand-header';
-        header.style.borderLeftColor = '#' + strandGoals[0].colorBorder;
-        header.style.borderLeftWidth = '4px';
-        header.style.borderLeftStyle = 'solid';
-        const isOpen = expandedStrands.has(strand);
-        header.innerHTML = `<span>${strand}</span><span>${isOpen ? '−' : '+'}</span>`;
-        header.addEventListener('click', () => {
-          if (expandedStrands.has(strand)) expandedStrands.delete(strand);
-          else expandedStrands.add(strand);
-          renderGoalResults();
-        });
-        goalResultsEl.appendChild(header);
-        if (isOpen) {
-          const wrap = document.createElement('div');
-          wrap.className = 'goal-strand-goals';
-          strandGoals.forEach(g => wrap.appendChild(makeGoalResultEl(g)));
-          goalResultsEl.appendChild(wrap);
-        }
+    const strands = [...new Set(WHARIKI_GOALS.map(g => g.strand))];
+    strands.forEach(strand => {
+      const strandGoals = WHARIKI_GOALS.filter(g => g.strand === strand);
+      const header = document.createElement('div');
+      header.className = 'goal-strand-header';
+      header.style.borderLeftColor = '#' + strandGoals[0].colorBorder;
+      header.style.borderLeftWidth = '4px';
+      header.style.borderLeftStyle = 'solid';
+      const isOpen = expandedStrands.has(strand);
+      header.innerHTML = `<span>${strand}</span><span>${isOpen ? '−' : '+'}</span>`;
+      header.addEventListener('click', () => {
+        if (expandedStrands.has(strand)) expandedStrands.delete(strand);
+        else expandedStrands.add(strand);
+        renderGoalResults();
       });
-      return;
-    }
-
-    const query = goalSearchInput.value.trim();
-    if (!query) return;
-    const matches = WHARIKI_GOALS.filter(g => goalMatches(g, query)).slice(0, 12);
-    matches.forEach(g => goalResultsEl.appendChild(makeGoalResultEl(g)));
+      goalResultsEl.appendChild(header);
+      if (isOpen) {
+        const wrap = document.createElement('div');
+        wrap.className = 'goal-strand-goals';
+        strandGoals.forEach(g => wrap.appendChild(makeGoalResultEl(g)));
+        goalResultsEl.appendChild(wrap);
+      }
+    });
   }
 
   browseToggle.addEventListener('click', () => {
-    browseMode = !browseMode;
-    browseToggle.classList.toggle('active', browseMode);
-    browseToggle.textContent = browseMode ? 'Search instead' : 'Browse all';
-    if (browseMode) goalSearchInput.value = '';
+    browseOpen = !browseOpen;
+    browseToggle.classList.toggle('active', browseOpen);
+    browseToggle.textContent = browseOpen ? 'Close' : 'Browse all goals';
+    if (!browseOpen) expandedStrands.clear();
     renderGoalResults();
   });
 
@@ -468,7 +441,10 @@
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'goal-chip';
-      chip.innerHTML = `${g.strand} · Goal ${g.goal} <span class="x">×</span>`;
+      chip.style.borderLeftColor = '#' + g.colorBorder;
+      chip.style.background = '#' + g.colorFill;
+      chip.style.color = '#' + g.colorText;
+      chip.innerHTML = `<span>${g.strand} · Goal ${g.goal}</span><span class="x">×</span>`;
       chip.addEventListener('click', () => {
         const idx = selectedGoalIds.indexOf(id);
         if (idx > -1) selectedGoalIds.splice(idx, 1);
@@ -478,8 +454,6 @@
       goalChipsEl.appendChild(chip);
     });
   }
-
-  goalSearchInput.addEventListener('input', renderGoalResults);
 
   function loadImageDims(dataUrl) {
     return new Promise((resolve) => {
