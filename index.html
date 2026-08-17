@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Learning Story</title>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 <style>
@@ -88,10 +88,12 @@
     background: rgba(46,42,37,0.75); color: #fff; border: none; border-radius: 50%;
     font-size: 14px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
+  .photo-add-row { display: flex; gap: 8px; }
   .add-photo-btn {
+    flex: 1;
     border: 1.5px dashed var(--line); border-radius: var(--radius);
-    background: var(--card); text-align: center; padding: 16px 14px;
-    position: relative; color: var(--ink-soft); font-size: 14.5px;
+    background: var(--card); text-align: center; padding: 16px 10px;
+    position: relative; color: var(--ink-soft); font-size: 13.5px;
   }
   .add-photo-btn input[type="file"] {
     position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
@@ -167,9 +169,15 @@
   <div class="field">
     <label>Photos <span class="optional-tag">optional</span></label>
     <div class="photo-grid" id="photo-grid"></div>
-    <div class="add-photo-btn" id="add-photo-btn">
-      <input type="file" id="photo-input" accept="image/*" multiple>
-      <span>📷 Add photo</span>
+    <div class="photo-add-row">
+      <div class="add-photo-btn">
+        <input type="file" id="camera-input" accept="image/*" capture="environment">
+        <span>📷 Take photo</span>
+      </div>
+      <div class="add-photo-btn">
+        <input type="file" id="photo-input" accept="image/*" multiple>
+        <span>🖼️ Choose photos</span>
+      </div>
     </div>
   </div>
 
@@ -290,8 +298,8 @@
     });
   }
 
-  photoInput.addEventListener('change', (e) => {
-    const files = Array.from(e.target.files || []);
+  function handlePhotoFiles(inputEl) {
+    const files = Array.from(inputEl.files || []);
     let remaining = files.length;
     if (!remaining) return;
     files.forEach(file => {
@@ -302,12 +310,15 @@
         remaining--;
         if (remaining === 0) {
           renderPhotoGrid();
-          photoInput.value = '';
+          inputEl.value = '';
         }
       };
       reader.readAsDataURL(file);
     });
-  });
+  }
+
+  photoInput.addEventListener('change', () => handlePhotoFiles(photoInput));
+  document.getElementById('camera-input').addEventListener('change', () => handlePhotoFiles(document.getElementById('camera-input')));
 
   const WHARIKI_GOALS = [
     { id: 'wb1', strand: 'Wellbeing', maori: 'Mana Atua', goal: 1, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
@@ -484,6 +495,88 @@
     return new Uint8Array(buf);
   }
 
+  function wrapCanvasText(ctx, text, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  async function renderGoalStickerImage(g) {
+    await document.fonts.ready;
+    const SCALE = 2; // render at 2x for crisp text when printed
+    const WIDTH = 340;
+    const PAD = 14;
+    const textMaxWidth = WIDTH - PAD * 2;
+
+    // measure first at 1x to compute required height
+    const measureCanvas = document.createElement('canvas');
+    const mctx = measureCanvas.getContext('2d');
+
+    mctx.font = '700 13px "Nunito Sans"';
+    const titleText = `${g.strand} · Goal ${g.goal} — ${g.text}`;
+    const titleLines = wrapCanvasText(mctx, titleText, textMaxWidth);
+
+    mctx.font = 'italic 400 11.5px "Nunito Sans"';
+    const outcomeLines = wrapCanvasText(mctx, 'Outcome: ' + g.outcome, textMaxWidth);
+
+    const titleLineHeight = 17;
+    const outcomeLineHeight = 15;
+    const gapBetween = 5;
+    const height = PAD * 2 + titleLines.length * titleLineHeight + gapBetween + outcomeLines.length * outcomeLineHeight;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = WIDTH * SCALE;
+    canvas.height = height * SCALE;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(SCALE, SCALE);
+
+    // background
+    const radius = 8;
+    ctx.fillStyle = '#' + g.colorFill;
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.arcTo(WIDTH, 0, WIDTH, height, radius);
+    ctx.arcTo(WIDTH, height, 0, height, radius);
+    ctx.arcTo(0, height, 0, 0, radius);
+    ctx.arcTo(0, 0, WIDTH, 0, radius);
+    ctx.closePath();
+    ctx.fill();
+
+    // border
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = '#' + g.colorBorder;
+    ctx.stroke();
+
+    // left accent bar
+    ctx.fillStyle = '#' + g.colorBorder;
+    ctx.fillRect(0, 0, 4, height);
+
+    // title (strand/goal + description on the same line, wrapped)
+    ctx.fillStyle = '#' + g.colorText;
+    ctx.font = '700 13px "Nunito Sans"';
+    ctx.textBaseline = 'top';
+    titleLines.forEach((line, i) => ctx.fillText(line, PAD, PAD + i * titleLineHeight));
+
+    // outcome
+    ctx.fillStyle = '#6B6459';
+    ctx.font = 'italic 400 11.5px "Nunito Sans"';
+    const outcomeStartY = PAD + titleLines.length * titleLineHeight + gapBetween;
+    outcomeLines.forEach((line, i) => ctx.fillText(line, PAD, outcomeStartY + i * outcomeLineHeight));
+
+    return { dataUrl: canvas.toDataURL('image/png'), width: WIDTH, height };
+  }
+
   function guessImageType(dataUrl) {
     const match = /^data:image\/(png|jpe?g|gif|bmp)/i.exec(dataUrl);
     if (!match) return 'png';
@@ -493,8 +586,43 @@
 
   async function buildDocxBlob() {
     const {
-      Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType, BorderStyle
+      Document, Packer, Paragraph, TextRun, ImageRun,
+      HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType
     } = window.docx;
+
+    const pxToEmu = 9525;
+    const CONTENT_WIDTH_TWIPS = 11906 - 720 * 2;
+    const contentWidthPx = Math.round(CONTENT_WIDTH_TWIPS / 1440 * 96);
+
+    // Builds a paragraph of side-by-side floating images (fixed pixel widths, given
+    // per-image) using "break text" (top/bottom) wrap — text stops above and resumes
+    // below rather than hugging the sides. Since each item is a flat image, Word/Docs
+    // pushes a whole one to the next page rather than splitting it mid-content.
+    function buildFloatingImageRow(items, gapPx) {
+      let cumulativeOffsetEmu = 0;
+      const runs = items.map(({ bytes, type, w, h }) => {
+        const run = new ImageRun({
+          data: bytes,
+          type,
+          transformation: { width: w, height: h },
+          floating: {
+            horizontalPosition: { relative: HorizontalPositionRelativeFrom.COLUMN, offset: cumulativeOffsetEmu },
+            verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: 0 },
+            wrap: { type: TextWrappingType.TOP_AND_BOTTOM },
+            margins: { top: 45000, bottom: 90000, left: 30000, right: 30000 }
+          }
+        });
+        cumulativeOffsetEmu += w * pxToEmu + gapPx * pxToEmu;
+        return run;
+      });
+      return new Paragraph({ children: runs, spacing: { after: 100 } });
+    }
+
+    function chunk(arr, size) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    }
 
     const title = document.getElementById('title').value.trim() || 'Learning Story';
     const observer = document.getElementById('observer').value.trim();
@@ -524,50 +652,22 @@
       })
     ];
 
-    // A4 content width in twips (0.5in margins each side) — used to size photo rows
-    const CONTENT_WIDTH_TWIPS = 11906 - 720 * 2;
-
     // --- photos, floating side-by-side in rows with "break text" (top/bottom) wrap ---
-    // text stops above the row and resumes below, rather than hugging the sides —
-    // simpler and more robust than left/right wrap, and matches Google Docs' own
-    // "Break text" option. Images stay draggable/rearrangeable afterwards.
     if (photos.length) {
-      const { HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType } = window.docx;
-      const pxToEmu = 9525;
       const gapPx = 14;
-      const contentWidthPx = Math.round(CONTENT_WIDTH_TWIPS / 1440 * 96);
-
-      function chunk(arr, size) {
-        const out = [];
-        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-        return out;
-      }
-
       const rows = chunk(photos, 3);
       for (const row of rows) {
         const rowMaxWidthPx = (contentWidthPx - gapPx * (row.length - 1)) / row.length;
-        let cumulativeOffsetEmu = 0;
-        const runs = [];
+        const items = [];
         for (const dataUrl of row) {
           const dims = await loadImageDims(dataUrl);
           const scale = Math.min(rowMaxWidthPx / dims.width, 260 / dims.height, 1);
           const w = Math.round(dims.width * scale);
           const h = Math.round(dims.height * scale);
           const bytes = await dataUrlToBytes(dataUrl);
-          runs.push(new ImageRun({
-            data: bytes,
-            type: guessImageType(dataUrl),
-            transformation: { width: w, height: h },
-            floating: {
-              horizontalPosition: { relative: HorizontalPositionRelativeFrom.COLUMN, offset: cumulativeOffsetEmu },
-              verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: 0 },
-              wrap: { type: TextWrappingType.TOP_AND_BOTTOM },
-              margins: { top: 45000, bottom: 90000, left: 30000, right: 30000 }
-            }
-          }));
-          cumulativeOffsetEmu += w * pxToEmu + gapPx * pxToEmu;
+          items.push({ bytes, type: guessImageType(dataUrl), w, h });
         }
-        children.push(new Paragraph({ children: runs, spacing: { after: 100 } }));
+        children.push(buildFloatingImageRow(items, gapPx));
       }
     }
 
@@ -589,22 +689,23 @@
     pushLabelledText('What learning did I notice?', learning);
     pushLabelledText('How could we extend this next time?', extend);
 
+    // --- Whāriki goals, as packed sticker images (2 per row) ---
+    // rendered as flat images (not live Word text/tables) so they: (a) can sit
+    // narrow and tight without fighting Word's table-width quirks, (b) never split
+    // mid-box across a page break, and (c) waste minimal vertical space.
     if (selectedGoalIds.length) {
       const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
-      goals.forEach(g => {
-        const border = { style: BorderStyle.SINGLE, size: 6, color: g.colorBorder, space: 8 };
-        const leftBorder = { style: BorderStyle.SINGLE, size: 18, color: g.colorBorder, space: 8 };
-        children.push(new Paragraph({
-          shading: { type: 'solid', color: g.colorFill, fill: g.colorFill },
-          border: { top: border, bottom: border, left: leftBorder, right: border },
-          spacing: { after: 100 },
-          children: [
-            new TextRun({ text: `${g.strand} · Goal ${g.goal}`, font: 'Nunito Sans', bold: true, size: 20, color: g.colorText }),
-            new TextRun({ text: g.text, font: 'Nunito Sans', size: 20, color: '2E2A25', break: 1 }),
-            new TextRun({ text: 'Outcome: ' + g.outcome, font: 'Nunito Sans', size: 18, italics: true, color: '6B6459', break: 1 })
-          ]
-        }));
-      });
+      const gapPx = 12;
+      const rows = chunk(goals, 2);
+      for (const row of rows) {
+        const items = [];
+        for (const g of row) {
+          const { dataUrl, width, height } = await renderGoalStickerImage(g);
+          const bytes = await dataUrlToBytes(dataUrl);
+          items.push({ bytes, type: 'png', w: width, h: height });
+        }
+        children.push(buildFloatingImageRow(items, gapPx));
+      }
     } else {
       children.push(new Paragraph({
         children: [new TextRun({ text: 'Whāriki goals', font: 'Baloo 2', bold: true, size: 26, color: HEADING_GREY })],
