@@ -233,6 +233,12 @@
         </select>
       </div>
 
+      <div class="field">
+        <label for="context-terms-input">Contextual names/terms <span class="optional-tag">optional</span></label>
+        <input type="text" id="context-terms-input" placeholder="e.g. Playcentre, kaiako, staff names">
+        <div class="hint">Words or names specific to your centre that voice-to-text often mangles — these get passed along every time so they're corrected consistently.</div>
+      </div>
+
       <div class="field" style="margin-bottom: 0;">
         <label for="tidy-prompt-input">Tidy up prompt</label>
         <textarea id="tidy-prompt-input" style="min-height: 140px;"></textarea>
@@ -372,15 +378,17 @@
   const AI_MODEL_KEY = 'korero_ai_model';
   const AI_PROMPT_KEY = 'korero_ai_tidy_prompt';
   const DEFAULT_TIDY_PROMPT = `The following text was captured using voice-to-text while an early childhood educator was talking through what they observed. Please lightly tidy it up:
-- Break it into sentences with correct capitalisation and punctuation.
-- Fix words that were clearly mangled by voice-to-text (e.g. misheard names or homophones), using context to guess the intended word.
-- Do NOT rephrase, summarise, shorten, or change the wording, tone, or meaning otherwise. Keep the person's own voice and word choices exactly as they are.
+- Break it into natural, standard-length sentences with correct capitalisation and punctuation. Voice-to-text often produces one long run-on sentence — split it into several reasonably sized ones rather than leaving it as one giant sentence.
+- Remove verbal filler and thinking-out-loud disfluencies (e.g. "um", "uh", "like", "you know", "but yeah", "so yeah", false starts and self-corrections) that are artifacts of speaking rather than part of the actual content.
+- Fix words that were clearly mangled by voice-to-text (e.g. misheard names, places, or homophones), using context to guess the intended word.
+- Beyond removing filler and fixing mangled words/sentence breaks, do NOT rephrase, summarise, shorten, or otherwise change the wording, tone, or meaning. Keep the person's own voice and word choices.
 - Do not add any information that wasn't there.
 Return ONLY the corrected text, with no preamble, explanation, or quotation marks around it.`;
 
   const aiEnabledToggle = document.getElementById('ai-enabled-toggle');
   const modelSelect = document.getElementById('model-select');
   const tidyPromptInput = document.getElementById('tidy-prompt-input');
+  const contextTermsInput = document.getElementById('context-terms-input');
   const tidyNoticeBtn = document.getElementById('tidy-notice-btn');
   const tidyNoticeStatus = document.getElementById('tidy-notice-status');
 
@@ -391,9 +399,12 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     try { localStorage.setItem(key, val); } catch (e) { /* ignore */ }
   }
 
+  const AI_CONTEXT_TERMS_KEY = 'korero_ai_context_terms';
   aiEnabledToggle.checked = safeGet(AI_ENABLED_KEY, 'false') === 'true';
   modelSelect.value = safeGet(AI_MODEL_KEY, 'claude-sonnet-5');
   tidyPromptInput.value = safeGet(AI_PROMPT_KEY, DEFAULT_TIDY_PROMPT);
+  contextTermsInput.value = safeGet(AI_CONTEXT_TERMS_KEY, '');
+  contextTermsInput.addEventListener('input', () => safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value));
 
   function updateTidyButtonVisibility() {
     tidyNoticeBtn.style.display = aiEnabledToggle.checked ? '' : 'none';
@@ -425,6 +436,19 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     tidyNoticeBtn.disabled = true;
     tidyNoticeBtn.textContent = 'Tidying up…';
 
+    // Children's names change per-story, so add them as dynamic context each
+    // time rather than baking them into the saved (editable) prompt — this helps
+    // the model correct misheard names to match who's actually in this story.
+    const namesField = document.getElementById('children-names').value.trim();
+    let effectiveSystemPrompt = tidyPromptInput.value;
+    if (namesField) {
+      effectiveSystemPrompt += `\n\nContext: the children's names in this particular story are: ${namesField}. If any of these appear misheard or mangled in the text, correct them to match these names.`;
+    }
+    const contextTerms = contextTermsInput.value.trim();
+    if (contextTerms) {
+      effectiveSystemPrompt += `\n\nContext: other names/terms specific to this centre that are commonly mangled by voice-to-text: ${contextTerms}. Correct any garbled versions of these back to how they're written here.`;
+    }
+
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -437,7 +461,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         body: JSON.stringify({
           model: modelSelect.value,
           max_tokens: 1024,
-          system: tidyPromptInput.value,
+          system: effectiveSystemPrompt,
           messages: [{ role: 'user', content: text }]
         })
       });
