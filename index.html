@@ -18,6 +18,7 @@
     --kowhai: #E8B94B;
     --line: #E7E0D3;
     --radius: 14px;
+    --field-gap: 20px;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -41,9 +42,9 @@
     font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase;
     color: var(--ink-soft);
   }
-  p.tagline { margin: 0 0 22px; color: var(--ink-soft); font-size: 14px; }
+  p.tagline { margin: 0 0 var(--field-gap); color: var(--ink-soft); font-size: 14px; }
 
-  .field { margin-bottom: 18px; }
+  .field { margin-bottom: var(--field-gap); }
   label {
     display: block; font-size: 12.5px; font-weight: 600;
     letter-spacing: .02em; text-transform: uppercase;
@@ -162,6 +163,36 @@
   .goal-chip .x { font-size: 14px; line-height: 1; flex-shrink: 0; }
   .goal-empty-hint { font-size: 12.5px; color: var(--ink-soft); padding: 6px 2px; }
 
+  .settings-details { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+  .api-key-status {
+    font-size: 13.5px; font-family: 'SF Mono', 'Consolas', monospace;
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px; color: var(--ink);
+  }
+  .api-key-status.none { color: var(--ink-soft); font-family: inherit; font-style: italic; }
+  .api-key-actions { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
+  .secondary-btn {
+    background: var(--card); border: 1.5px solid var(--sage-dark); color: var(--sage-dark);
+    font-size: 13px; font-weight: 700; padding: 9px 14px; border-radius: 8px;
+    cursor: pointer; font-family: inherit;
+  }
+  .text-btn {
+    background: none; border: none; color: var(--ink-soft); font-size: 13px;
+    font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: underline;
+    padding: 9px 4px;
+  }
+  .toggle-label {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink);
+  }
+  .toggle-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--sage-dark); }
+  #model-select {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 13px; font-size: 16px; font-family: inherit;
+    background: var(--card); color: var(--ink);
+  }
+  .tidy-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
   #preview-page { display: none; }
 </style>
 </head>
@@ -172,6 +203,43 @@
     <span class="brand-sub">Learning Story</span>
   </div>
   <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
+
+  <details class="field-details settings-details">
+    <summary>⚙️ Settings</summary>
+    <div class="details-body">
+      <div class="field">
+        <label class="toggle-label">
+          <input type="checkbox" id="ai-enabled-toggle">
+          <span>Enable AI help (tidy up with AI)</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="api-key-input">Claude API key <span class="optional-tag">needed for AI help</span></label>
+        <div class="api-key-status" id="api-key-status"></div>
+        <input type="password" id="api-key-input" placeholder="sk-ant-...">
+        <div class="api-key-actions">
+          <button type="button" class="secondary-btn" id="save-api-key-btn">Save key</button>
+          <button type="button" class="text-btn" id="remove-api-key-btn">Remove</button>
+        </div>
+        <div class="hint">Stored only on this device (in this browser), never sent anywhere except directly to Anthropic when AI features are used.</div>
+      </div>
+
+      <div class="field">
+        <label for="model-select">Model</label>
+        <select id="model-select">
+          <option value="claude-sonnet-5">Claude Sonnet 5 (more capable)</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (faster, cheaper)</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom: 0;">
+        <label for="tidy-prompt-input">Tidy up prompt</label>
+        <textarea id="tidy-prompt-input" style="min-height: 140px;"></textarea>
+        <div class="hint">This is sent as the instruction each time you tap "Tidy up with AI" — edit it if you want different results.</div>
+      </div>
+    </div>
+  </details>
 
   <div class="field">
     <label>Photos <span class="optional-tag">optional</span></label>
@@ -197,6 +265,8 @@
     <label for="notice">What did I observe? <span class="optional-tag">optional</span></label>
     <textarea id="notice" placeholder="Tap here, then use the mic on your keyboard to talk it out"></textarea>
     <div class="hint">Tip: tap the field, then tap the microphone icon on your keyboard to dictate.</div>
+    <button type="button" class="secondary-btn tidy-btn" id="tidy-notice-btn" style="display: none; margin-top: 8px;">✨ Tidy up with AI</button>
+    <div class="hint" id="tidy-notice-status"></div>
   </div>
 
   <details class="field-details">
@@ -246,6 +316,158 @@
 
 
 <script>
+  // --- API key settings (stored locally on this device only) ---
+  const API_KEY_STORAGE_KEY = 'korero_claude_api_key';
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyStatus = document.getElementById('api-key-status');
+  const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+  const removeApiKeyBtn = document.getElementById('remove-api-key-btn');
+
+  function maskApiKey(key) {
+    if (key.length <= 10) return key[0] + '…' + key.slice(-2);
+    return key.slice(0, 7) + '…' + key.slice(-4);
+  }
+
+  function getSavedApiKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE_KEY) || ''; }
+    catch (e) { return ''; } // localStorage may be unavailable (e.g. private browsing, or this in-chat preview)
+  }
+
+  function renderApiKeyStatus() {
+    const saved = getSavedApiKey();
+    if (saved) {
+      apiKeyStatus.textContent = 'Key saved: ' + maskApiKey(saved);
+      apiKeyStatus.classList.remove('none');
+      removeApiKeyBtn.style.display = '';
+    } else {
+      apiKeyStatus.textContent = 'No key saved yet.';
+      apiKeyStatus.classList.add('none');
+      removeApiKeyBtn.style.display = 'none';
+    }
+  }
+  renderApiKeyStatus();
+
+  saveApiKeyBtn.addEventListener('click', () => {
+    const val = apiKeyInput.value.trim();
+    if (!val) return;
+    try {
+      localStorage.setItem(API_KEY_STORAGE_KEY, val);
+    } catch (e) {
+      apiKeyStatus.textContent = "Couldn't save — browser storage isn't available here.";
+      apiKeyStatus.classList.add('none');
+      return;
+    }
+    apiKeyInput.value = ''; // clear the visible field once saved, so it doesn't linger on-screen
+    renderApiKeyStatus();
+  });
+
+  removeApiKeyBtn.addEventListener('click', () => {
+    try { localStorage.removeItem(API_KEY_STORAGE_KEY); } catch (e) { /* ignore */ }
+    apiKeyInput.value = '';
+    renderApiKeyStatus();
+  });
+
+  // --- AI settings: enable toggle, model choice, editable tidy-up prompt ---
+  const AI_ENABLED_KEY = 'korero_ai_enabled';
+  const AI_MODEL_KEY = 'korero_ai_model';
+  const AI_PROMPT_KEY = 'korero_ai_tidy_prompt';
+  const DEFAULT_TIDY_PROMPT = `The following text was captured using voice-to-text while an early childhood educator was talking through what they observed. Please lightly tidy it up:
+- Break it into sentences with correct capitalisation and punctuation.
+- Fix words that were clearly mangled by voice-to-text (e.g. misheard names or homophones), using context to guess the intended word.
+- Do NOT rephrase, summarise, shorten, or change the wording, tone, or meaning otherwise. Keep the person's own voice and word choices exactly as they are.
+- Do not add any information that wasn't there.
+Return ONLY the corrected text, with no preamble, explanation, or quotation marks around it.`;
+
+  const aiEnabledToggle = document.getElementById('ai-enabled-toggle');
+  const modelSelect = document.getElementById('model-select');
+  const tidyPromptInput = document.getElementById('tidy-prompt-input');
+  const tidyNoticeBtn = document.getElementById('tidy-notice-btn');
+  const tidyNoticeStatus = document.getElementById('tidy-notice-status');
+
+  function safeGet(key, fallback) {
+    try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+  }
+  function safeSet(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* ignore */ }
+  }
+
+  aiEnabledToggle.checked = safeGet(AI_ENABLED_KEY, 'false') === 'true';
+  modelSelect.value = safeGet(AI_MODEL_KEY, 'claude-sonnet-5');
+  tidyPromptInput.value = safeGet(AI_PROMPT_KEY, DEFAULT_TIDY_PROMPT);
+
+  function updateTidyButtonVisibility() {
+    tidyNoticeBtn.style.display = aiEnabledToggle.checked ? '' : 'none';
+  }
+  updateTidyButtonVisibility();
+
+  aiEnabledToggle.addEventListener('change', () => {
+    safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false');
+    updateTidyButtonVisibility();
+  });
+  modelSelect.addEventListener('change', () => safeSet(AI_MODEL_KEY, modelSelect.value));
+  tidyPromptInput.addEventListener('input', () => safeSet(AI_PROMPT_KEY, tidyPromptInput.value));
+
+  tidyNoticeBtn.addEventListener('click', async () => {
+    const noticeEl = document.getElementById('notice');
+    const text = noticeEl.value.trim();
+    tidyNoticeStatus.textContent = '';
+
+    const apiKey = getSavedApiKey();
+    if (!apiKey) {
+      tidyNoticeStatus.textContent = 'Add your Claude API key in Settings first.';
+      return;
+    }
+    if (!text) {
+      tidyNoticeStatus.textContent = 'Nothing to tidy up yet — add some text first.';
+      return;
+    }
+
+    tidyNoticeBtn.disabled = true;
+    tidyNoticeBtn.textContent = 'Tidying up…';
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: modelSelect.value,
+          max_tokens: 1024,
+          system: tidyPromptInput.value,
+          messages: [{ role: 'user', content: text }]
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error?.message || `Request failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const cleaned = (data.content || [])
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('\n')
+        .trim();
+
+      if (cleaned) {
+        noticeEl.value = cleaned;
+        tidyNoticeStatus.textContent = 'Tidied up! Feel free to edit further.';
+      } else {
+        tidyNoticeStatus.textContent = "Didn't get a result back — try again.";
+      }
+    } catch (err) {
+      tidyNoticeStatus.textContent = 'Something went wrong: ' + err.message;
+    } finally {
+      tidyNoticeBtn.disabled = false;
+      tidyNoticeBtn.textContent = '✨ Tidy up with AI';
+    }
+  });
+
   const dateInput = document.getElementById('date-input');
   const datePreview = document.getElementById('date-preview');
   const today = new Date();
