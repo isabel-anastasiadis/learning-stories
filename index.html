@@ -56,12 +56,12 @@
   }
   .optional-tag { background: #EFEBE0; color: var(--ink-soft); }
   .required-tag { background: #F3E3D9; color: #A05A2C; }
-  input[type="text"], textarea {
+  input[type="text"], input[type="password"], textarea {
     width: 100%; border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 13px; font-size: 16px; font-family: inherit;
     background: var(--card); color: var(--ink);
   }
-  input[type="text"]:focus, textarea:focus {
+  input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     outline: none; border-color: var(--sage);
     box-shadow: 0 0 0 3px rgba(110,138,111,0.15);
   }
@@ -164,22 +164,19 @@
   .goal-empty-hint { font-size: 12.5px; color: var(--ink-soft); padding: 6px 2px; }
 
   .settings-details { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
-  .api-key-status {
-    font-size: 13.5px; font-family: 'SF Mono', 'Consolas', monospace;
-    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-    padding: 10px 12px; margin-bottom: 8px; color: var(--ink);
+  .api-key-badge {
+    display: block; width: 100%; box-sizing: border-box;
+    font-size: 15px; font-family: 'SF Mono', 'Consolas', monospace;
+    background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    padding: 12px 13px; border-radius: 10px;
   }
-  .api-key-status.none { color: var(--ink-soft); font-family: inherit; font-style: italic; }
-  .api-key-actions { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
+  #api-key-saved-state { display: block; }
+  .full-width-btn { width: 100%; margin-top: 8px; }
+  #ai-sub-settings.disabled { opacity: 0.45; pointer-events: none; }
   .secondary-btn {
     background: var(--card); border: 1.5px solid var(--sage-dark); color: var(--sage-dark);
     font-size: 13px; font-weight: 700; padding: 9px 14px; border-radius: 8px;
     cursor: pointer; font-family: inherit;
-  }
-  .text-btn {
-    background: none; border: none; color: var(--ink-soft); font-size: 13px;
-    font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: underline;
-    padding: 9px 4px;
   }
   .toggle-label {
     display: flex; align-items: center; gap: 10px; cursor: pointer;
@@ -214,35 +211,42 @@
         </label>
       </div>
 
-      <div class="field">
-        <label for="api-key-input">Claude API key <span class="optional-tag">needed for AI help</span></label>
-        <div class="api-key-status" id="api-key-status"></div>
-        <input type="password" id="api-key-input" placeholder="sk-ant-...">
-        <div class="api-key-actions">
-          <button type="button" class="secondary-btn" id="save-api-key-btn">Save key</button>
-          <button type="button" class="text-btn" id="remove-api-key-btn">Remove</button>
+      <div id="ai-sub-settings">
+        <div class="field">
+          <label for="api-key-input">Claude API key <span class="optional-tag">needed for AI help</span></label>
+
+          <div id="api-key-empty-state">
+            <input type="password" id="api-key-input" placeholder="e.g. sk-ant-...">
+            <button type="button" class="secondary-btn full-width-btn" id="save-api-key-btn">Save key</button>
+          </div>
+
+          <div id="api-key-saved-state" style="display: none;">
+            <span class="api-key-badge" id="api-key-badge"></span>
+            <button type="button" class="secondary-btn full-width-btn" id="remove-api-key-btn">Remove key</button>
+          </div>
+
+          <div class="hint">Stored only on this device (in this browser), never sent anywhere except directly to Anthropic when AI features are used.</div>
         </div>
-        <div class="hint">Stored only on this device (in this browser), never sent anywhere except directly to Anthropic when AI features are used.</div>
-      </div>
 
-      <div class="field">
-        <label for="model-select">Model</label>
-        <select id="model-select">
-          <option value="claude-sonnet-5">Claude Sonnet 5 (more capable)</option>
-          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (faster, cheaper)</option>
-        </select>
-      </div>
+        <div class="field">
+          <label for="model-select">Model</label>
+          <select id="model-select">
+            <option value="claude-sonnet-5">Claude Sonnet 5 (more capable)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (faster, cheaper)</option>
+          </select>
+        </div>
 
-      <div class="field">
-        <label for="context-terms-input">Contextual names/terms <span class="optional-tag">optional</span></label>
-        <input type="text" id="context-terms-input" placeholder="e.g. Playcentre, kaiako, staff names">
-        <div class="hint">Words or names specific to your centre that voice-to-text often mangles — these get passed along every time so they're corrected consistently.</div>
-      </div>
+        <div class="field">
+          <label for="context-terms-input">Contextual names/terms <span class="optional-tag">optional</span></label>
+          <input type="text" id="context-terms-input" placeholder="e.g. Playcentre, kaiako, staff names">
+          <div class="hint">Words or names specific to your centre that voice-to-text often mangles — these get passed along every time so they're corrected consistently.</div>
+        </div>
 
-      <div class="field" style="margin-bottom: 0;">
-        <label for="tidy-prompt-input">Tidy up prompt</label>
-        <textarea id="tidy-prompt-input" style="min-height: 140px;"></textarea>
-        <div class="hint">This is sent as the instruction each time you tap "Tidy up with AI" — edit it if you want different results.</div>
+        <div class="field" style="margin-bottom: 0;">
+          <label for="tidy-prompt-input">Tidy up prompt</label>
+          <textarea id="tidy-prompt-input" style="min-height: 140px;"></textarea>
+          <div class="hint">This is sent as the instruction each time you tap "Tidy up with AI" — edit it if you want different results.</div>
+        </div>
       </div>
     </div>
   </details>
@@ -281,10 +285,14 @@
       <div class="field">
         <label for="learning">What learning did I notice?</label>
         <textarea id="learning" placeholder="What skills, ideas or dispositions were being developed?"></textarea>
+        <button type="button" class="secondary-btn tidy-btn" id="tidy-learning-btn" style="display: none; margin-top: 8px;">✨ Tidy up with AI</button>
+        <div class="hint" id="tidy-learning-status"></div>
       </div>
       <div class="field" style="margin-bottom: 0;">
         <label for="extend">How could we extend this next time?</label>
         <textarea id="extend" placeholder="Ideas for next steps"></textarea>
+        <button type="button" class="secondary-btn tidy-btn" id="tidy-extend-btn" style="display: none; margin-top: 8px;">✨ Tidy up with AI</button>
+        <div class="hint" id="tidy-extend-status"></div>
       </div>
     </div>
   </details>
@@ -325,7 +333,9 @@
   // --- API key settings (stored locally on this device only) ---
   const API_KEY_STORAGE_KEY = 'korero_claude_api_key';
   const apiKeyInput = document.getElementById('api-key-input');
-  const apiKeyStatus = document.getElementById('api-key-status');
+  const apiKeyEmptyState = document.getElementById('api-key-empty-state');
+  const apiKeySavedState = document.getElementById('api-key-saved-state');
+  const apiKeyBadge = document.getElementById('api-key-badge');
   const saveApiKeyBtn = document.getElementById('save-api-key-btn');
   const removeApiKeyBtn = document.getElementById('remove-api-key-btn');
 
@@ -342,13 +352,12 @@
   function renderApiKeyStatus() {
     const saved = getSavedApiKey();
     if (saved) {
-      apiKeyStatus.textContent = 'Key saved: ' + maskApiKey(saved);
-      apiKeyStatus.classList.remove('none');
-      removeApiKeyBtn.style.display = '';
+      apiKeyBadge.textContent = maskApiKey(saved);
+      apiKeyEmptyState.style.display = 'none';
+      apiKeySavedState.style.display = 'flex';
     } else {
-      apiKeyStatus.textContent = 'No key saved yet.';
-      apiKeyStatus.classList.add('none');
-      removeApiKeyBtn.style.display = 'none';
+      apiKeyEmptyState.style.display = '';
+      apiKeySavedState.style.display = 'none';
     }
   }
   renderApiKeyStatus();
@@ -359,8 +368,7 @@
     try {
       localStorage.setItem(API_KEY_STORAGE_KEY, val);
     } catch (e) {
-      apiKeyStatus.textContent = "Couldn't save — browser storage isn't available here.";
-      apiKeyStatus.classList.add('none');
+      alert("Couldn't save — browser storage isn't available here.");
       return;
     }
     apiKeyInput.value = ''; // clear the visible field once saved, so it doesn't linger on-screen
@@ -389,8 +397,6 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   const modelSelect = document.getElementById('model-select');
   const tidyPromptInput = document.getElementById('tidy-prompt-input');
   const contextTermsInput = document.getElementById('context-terms-input');
-  const tidyNoticeBtn = document.getElementById('tidy-notice-btn');
-  const tidyNoticeStatus = document.getElementById('tidy-notice-status');
 
   function safeGet(key, fallback) {
     try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
@@ -406,8 +412,15 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   contextTermsInput.value = safeGet(AI_CONTEXT_TERMS_KEY, '');
   contextTermsInput.addEventListener('input', () => safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value));
 
+  const aiSubSettings = document.getElementById('ai-sub-settings');
+  const allTidyButtons = document.querySelectorAll('.tidy-btn');
+
   function updateTidyButtonVisibility() {
-    tidyNoticeBtn.style.display = aiEnabledToggle.checked ? '' : 'none';
+    const enabled = aiEnabledToggle.checked;
+    allTidyButtons.forEach(btn => { btn.style.display = enabled ? '' : 'none'; });
+    // grey out (not hide) the sub-settings when disabled — everything typed in
+    // there stays saved in localStorage regardless, this is purely visual
+    aiSubSettings.classList.toggle('disabled', !enabled);
   }
   updateTidyButtonVisibility();
 
@@ -418,79 +431,91 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   modelSelect.addEventListener('change', () => safeSet(AI_MODEL_KEY, modelSelect.value));
   tidyPromptInput.addEventListener('input', () => safeSet(AI_PROMPT_KEY, tidyPromptInput.value));
 
-  tidyNoticeBtn.addEventListener('click', async () => {
-    const noticeEl = document.getElementById('notice');
-    const text = noticeEl.value.trim();
-    tidyNoticeStatus.textContent = '';
+  // Wires up a "Tidy up with AI" button for a given textarea. Same logic reused
+  // across "What did I observe?", "What learning did I notice?", and "How could
+  // we extend this next time?" — just pointed at a different field each time.
+  function setupTidyButton(fieldId, btnId, statusId) {
+    const fieldEl = document.getElementById(fieldId);
+    const btn = document.getElementById(btnId);
+    const statusEl = document.getElementById(statusId);
 
-    const apiKey = getSavedApiKey();
-    if (!apiKey) {
-      tidyNoticeStatus.textContent = 'Add your Claude API key in Settings first.';
-      return;
-    }
-    if (!text) {
-      tidyNoticeStatus.textContent = 'Nothing to tidy up yet — add some text first.';
-      return;
-    }
+    btn.addEventListener('click', async () => {
+      const text = fieldEl.value.trim();
+      statusEl.textContent = '';
 
-    tidyNoticeBtn.disabled = true;
-    tidyNoticeBtn.textContent = 'Tidying up…';
-
-    // Children's names change per-story, so add them as dynamic context each
-    // time rather than baking them into the saved (editable) prompt — this helps
-    // the model correct misheard names to match who's actually in this story.
-    const namesField = document.getElementById('children-names').value.trim();
-    let effectiveSystemPrompt = tidyPromptInput.value;
-    if (namesField) {
-      effectiveSystemPrompt += `\n\nContext: the children's names in this particular story are: ${namesField}. If any of these appear misheard or mangled in the text, correct them to match these names.`;
-    }
-    const contextTerms = contextTermsInput.value.trim();
-    if (contextTerms) {
-      effectiveSystemPrompt += `\n\nContext: other names/terms specific to this centre that are commonly mangled by voice-to-text: ${contextTerms}. Correct any garbled versions of these back to how they're written here.`;
-    }
-
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: modelSelect.value,
-          max_tokens: 1024,
-          system: effectiveSystemPrompt,
-          messages: [{ role: 'user', content: text }]
-        })
-      });
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody?.error?.message || `Request failed (${res.status})`);
+      const apiKey = getSavedApiKey();
+      if (!apiKey) {
+        statusEl.textContent = 'Add your Claude API key in Settings first.';
+        return;
+      }
+      if (!text) {
+        statusEl.textContent = 'Nothing to tidy up yet — add some text first.';
+        return;
       }
 
-      const data = await res.json();
-      const cleaned = (data.content || [])
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n')
-        .trim();
+      btn.disabled = true;
+      btn.textContent = 'Tidying up…';
 
-      if (cleaned) {
-        noticeEl.value = cleaned;
-        tidyNoticeStatus.textContent = 'Tidied up! Feel free to edit further.';
-      } else {
-        tidyNoticeStatus.textContent = "Didn't get a result back — try again.";
+      // Children's names change per-story, so add them as dynamic context each
+      // time rather than baking them into the saved (editable) prompt — this
+      // helps the model correct misheard names to match who's in this story.
+      const namesField = document.getElementById('children-names').value.trim();
+      let effectiveSystemPrompt = tidyPromptInput.value;
+      if (namesField) {
+        effectiveSystemPrompt += `\n\nContext: the children's names in this particular story are: ${namesField}. If any of these appear misheard or mangled in the text, correct them to match these names.`;
       }
-    } catch (err) {
-      tidyNoticeStatus.textContent = 'Something went wrong: ' + err.message;
-    } finally {
-      tidyNoticeBtn.disabled = false;
-      tidyNoticeBtn.textContent = '✨ Tidy up with AI';
-    }
-  });
+      const contextTerms = contextTermsInput.value.trim();
+      if (contextTerms) {
+        effectiveSystemPrompt += `\n\nContext: other names/terms specific to this centre that are commonly mangled by voice-to-text: ${contextTerms}. Correct any garbled versions of these back to how they're written here.`;
+      }
+
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: modelSelect.value,
+            max_tokens: 1024,
+            system: effectiveSystemPrompt,
+            messages: [{ role: 'user', content: text }]
+          })
+        });
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody?.error?.message || `Request failed (${res.status})`);
+        }
+
+        const data = await res.json();
+        const cleaned = (data.content || [])
+          .filter(block => block.type === 'text')
+          .map(block => block.text)
+          .join('\n')
+          .trim();
+
+        if (cleaned) {
+          fieldEl.value = cleaned;
+          statusEl.textContent = 'Tidied up! Feel free to edit further.';
+        } else {
+          statusEl.textContent = "Didn't get a result back — try again.";
+        }
+      } catch (err) {
+        statusEl.textContent = 'Something went wrong: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Tidy up with AI';
+      }
+    });
+  }
+
+  setupTidyButton('notice', 'tidy-notice-btn', 'tidy-notice-status');
+  setupTidyButton('learning', 'tidy-learning-btn', 'tidy-learning-status');
+  setupTidyButton('extend', 'tidy-extend-btn', 'tidy-extend-status');
 
   const dateInput = document.getElementById('date-input');
   const datePreview = document.getElementById('date-preview');
@@ -757,24 +782,19 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     await document.fonts.ready;
     const SCALE = 2; // render at 2x for crisp text when printed
     const WIDTH = 340;
-    const PAD = 14;
+    const PAD = 12;
     const textMaxWidth = WIDTH - PAD * 2;
 
     // measure first at 1x to compute required height
     const measureCanvas = document.createElement('canvas');
     const mctx = measureCanvas.getContext('2d');
 
-    mctx.font = '700 13px "Nunito Sans"';
+    mctx.font = '700 12.5px "Nunito Sans"';
     const titleText = `${g.strand} · Goal ${g.goal} — ${g.text}`;
     const titleLines = wrapCanvasText(mctx, titleText, textMaxWidth);
 
-    mctx.font = 'italic 400 11.5px "Nunito Sans"';
-    const outcomeLines = wrapCanvasText(mctx, 'Outcome: ' + g.outcome, textMaxWidth);
-
-    const titleLineHeight = 17;
-    const outcomeLineHeight = 15;
-    const gapBetween = 5;
-    const height = PAD * 2 + titleLines.length * titleLineHeight + gapBetween + outcomeLines.length * outcomeLineHeight;
+    const titleLineHeight = 16;
+    const height = PAD * 2 + titleLines.length * titleLineHeight;
 
     const canvas = document.createElement('canvas');
     canvas.width = WIDTH * SCALE;
@@ -783,7 +803,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     ctx.scale(SCALE, SCALE);
 
     // background
-    const radius = 8;
+    const radius = 7;
     ctx.fillStyle = '#' + g.colorFill;
     ctx.beginPath();
     ctx.moveTo(radius, 0);
@@ -803,17 +823,12 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     ctx.fillStyle = '#' + g.colorBorder;
     ctx.fillRect(0, 0, 4, height);
 
-    // title (strand/goal + description on the same line, wrapped)
+    // title (strand/goal + description on the same line, wrapped) — no outcome
+    // text anymore, to keep these compact enough to sit in the page footer
     ctx.fillStyle = '#' + g.colorText;
-    ctx.font = '700 13px "Nunito Sans"';
+    ctx.font = '700 12.5px "Nunito Sans"';
     ctx.textBaseline = 'top';
     titleLines.forEach((line, i) => ctx.fillText(line, PAD, PAD + i * titleLineHeight));
-
-    // outcome
-    ctx.fillStyle = '#6B6459';
-    ctx.font = 'italic 400 11.5px "Nunito Sans"';
-    const outcomeStartY = PAD + titleLines.length * titleLineHeight + gapBetween;
-    outcomeLines.forEach((line, i) => ctx.fillText(line, PAD, outcomeStartY + i * outcomeLineHeight));
 
     return { dataUrl: canvas.toDataURL('image/png'), width: WIDTH, height };
   }
@@ -873,21 +888,24 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const learning = document.getElementById('learning').value.trim();
     const extend = document.getElementById('extend').value.trim();
 
-    const HEADING_GREY = '5A554E';
+    const HEADING_GREY = '808080';
+    const META_GREY = '595959';
+    const TITLE_SOFT_BLACK = '333333';
+    const BODY_INK = '1A1A1A';
 
     const children = [
       new Paragraph({
-        children: [new TextRun({ text: title, font: 'Baloo 2', bold: true, size: 80, color: '2E2A25' })],
+        children: [new TextRun({ text: title, font: 'Calibri', bold: true, size: 80, color: TITLE_SOFT_BLACK })],
         spacing: { after: 80 }
       }),
       new Paragraph({
         children: [new TextRun({
           text: [observer ? `Observed by ${observer}` : '', dateStr, childrenNames ? `With: ${childrenNames}` : '']
             .filter(Boolean).join('   •   '),
-          font: 'Nunito Sans',
+          font: 'Calibri',
           italics: true,
           size: 30,
-          color: '6B6459'
+          color: META_GREY
         })],
         spacing: { after: 200 }
       })
@@ -914,13 +932,16 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
     function pushLabelledText(label, text) {
       children.push(new Paragraph({
-        children: [new TextRun({ text: label, font: 'Baloo 2', bold: true, size: 24, color: HEADING_GREY })],
+        children: [new TextRun({
+          text: label, font: 'Calibri', bold: true, size: 32, color: HEADING_GREY,
+          allCaps: true, characterSpacing: 20
+        })],
         spacing: { before: 160, after: 60 }
       }));
       if (!text) return;
       text.split(/\n/).forEach(line => {
         children.push(new Paragraph({
-          children: [new TextRun({ text: line, font: 'Nunito Sans', size: 36 })],
+          children: [new TextRun({ text: line, font: 'Calibri', size: 28, color: BODY_INK })],
           spacing: { after: 100 }
         }));
       });
@@ -930,14 +951,30 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     pushLabelledText('What learning did I notice?', learning);
     pushLabelledText('How could we extend this next time?', extend);
 
-    // --- Whāriki goals, as packed sticker images (2 per row) ---
-    // rendered as flat images (not live Word text/tables) so they: (a) can sit
+    if (!selectedGoalIds.length) {
+      children.push(new Paragraph({
+        children: [new TextRun({
+          text: 'Whāriki goals', font: 'Calibri', bold: true, size: 32, color: HEADING_GREY,
+          allCaps: true, characterSpacing: 20
+        })],
+        spacing: { before: 200, after: 120 }
+      }));
+    }
+
+    // --- Whāriki goals, as packed sticker images (2 per row) in the page footer ---
+    // Rendered as flat images (not live Word text/tables) so they: (a) can sit
     // narrow and tight without fighting Word's table-width quirks, (b) never split
-    // mid-box across a page break, and (c) waste minimal vertical space.
+    // mid-box across a page break. Living in a real footer (rather than floating
+    // in the body) means they always sit at the bottom of the page regardless of
+    // how much or little other content there is — no more interleaving with
+    // nearby headings, which floating-in-body was prone to.
+    let footer;
     if (selectedGoalIds.length) {
+      const { Footer } = window.docx;
       const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
       const gapPx = 12;
       const rows = chunk(goals, 2);
+      const footerChildren = [];
       for (const row of rows) {
         const items = [];
         for (const g of row) {
@@ -945,13 +982,9 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
           const bytes = await dataUrlToBytes(dataUrl);
           items.push({ bytes, type: 'png', w: width, h: height });
         }
-        children.push(buildFloatingImageRow(items, gapPx));
+        footerChildren.push(buildFloatingImageRow(items, gapPx));
       }
-    } else {
-      children.push(new Paragraph({
-        children: [new TextRun({ text: 'Whāriki goals', font: 'Baloo 2', bold: true, size: 26, color: HEADING_GREY })],
-        spacing: { before: 200, after: 120 }
-      }));
+      footer = new Footer({ children: footerChildren });
     }
 
     const doc = new Document({
@@ -962,6 +995,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
             margin: { top: 720, bottom: 720, left: 720, right: 720 }
           }
         },
+        footers: footer ? { default: footer } : undefined,
         children
       }]
     });
