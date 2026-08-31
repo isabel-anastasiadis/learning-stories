@@ -919,12 +919,16 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       children.push(spacer());
       const gapPx = 14;
       const rows = chunk(photos, 3);
+      // when there's only one photo overall, give it much more room — otherwise
+      // the height cap (260px) can leave a portrait photo tiny even though
+      // there's plenty of width to spare
+      const maxHeightPx = photos.length === 1 ? 500 : 260;
       for (const row of rows) {
         const rowMaxWidthPx = (contentWidthPx - gapPx * (row.length - 1)) / row.length;
         const items = [];
         for (const dataUrl of row) {
           const dims = await loadImageDims(dataUrl);
-          const scale = Math.min(rowMaxWidthPx / dims.width, 260 / dims.height, 1);
+          const scale = Math.min(rowMaxWidthPx / dims.width, maxHeightPx / dims.height, 1);
           const w = Math.round(dims.width * scale);
           const h = Math.round(dims.height * scale);
           const bytes = await dataUrlToBytes(dataUrl);
@@ -954,6 +958,20 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
     pushLabelledText('What did I observe?', notice);
     pushLabelledText('What learning did I notice?', learning);
+
+    // If any Whāriki goals are selected, list their learning outcomes as
+    // bullet points here — the footer stickers show which goals were selected,
+    // this is where the fuller "what does that actually look like" detail lives
+    if (selectedGoalIds.length) {
+      const outcomeGoals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
+      outcomeGoals.forEach(g => {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: '•  ' + g.outcome, font: 'Calibri', size: 28, color: BODY_INK })],
+          indent: { left: 220 },
+          spacing: { after: 80 }
+        }));
+      });
+    }
     pushLabelledText('How could we extend this next time?', extend);
 
     if (!selectedGoalIds.length) {
@@ -971,17 +989,36 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     // wrapped tamariki names cluster together on the right rather than
     // spreading across the full width ---
     const { Header, AlignmentType } = window.docx;
+
+    // Build "Observed by: X • date • With: names" with bold labels, italic
+    // throughout — segments joined with a plain italic bullet separator
+    const headerSegments = [];
+    if (observer) {
+      headerSegments.push([
+        new TextRun({ text: 'Observed by: ', bold: true, italics: true, font: 'Calibri', size: 24, color: META_GREY }),
+        new TextRun({ text: observer, italics: true, font: 'Calibri', size: 24, color: META_GREY })
+      ]);
+    }
+    headerSegments.push([new TextRun({ text: dateStr, italics: true, font: 'Calibri', size: 24, color: META_GREY })]);
+    if (childrenNames) {
+      headerSegments.push([
+        new TextRun({ text: 'With: ', bold: true, italics: true, font: 'Calibri', size: 24, color: META_GREY }),
+        new TextRun({ text: childrenNames, italics: true, font: 'Calibri', size: 24, color: META_GREY })
+      ]);
+    }
+    const headerRuns = [];
+    headerSegments.forEach((seg, i) => {
+      if (i > 0) headerRuns.push(new TextRun({ text: '   •   ', italics: true, font: 'Calibri', size: 24, color: META_GREY }));
+      headerRuns.push(...seg);
+    });
+
     const header = new Header({
-      children: [new Paragraph({
-        alignment: AlignmentType.RIGHT,
-        children: [new TextRun({
-          text: [observer ? `Observed by ${observer}` : '', dateStr, childrenNames ? `With: ${childrenNames}` : '']
-            .filter(Boolean).join('   •   '),
-          font: 'Calibri',
-          size: 24,
-          color: META_GREY
-        })]
-      })]
+      children: [
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: headerRuns }),
+        // extra blank line so body text has some breathing room below the
+        // header on page 2+ (not just an issue right under the title on page 1)
+        new Paragraph({ children: [] })
+      ]
     });
 
     // --- Whāriki goals, as packed sticker images in the page footer ---
@@ -1006,7 +1043,10 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
       const footerChildren = [];
       for (const row of rows) {
-        const stickerWidthPx = Math.floor((contentWidthPx - gapPx * (row.length - 1)) / row.length);
+        // a lone sticker shouldn't stretch full width — size it like it were
+        // one of a two-up row, so it reads as "half width" rather than huge
+        const effectiveColumns = row.length === 1 ? 2 : row.length;
+        const stickerWidthPx = Math.floor((contentWidthPx - gapPx * (effectiveColumns - 1)) / effectiveColumns);
 
         // measure each goal's natural height at this width first, so every
         // sticker in the row can be drawn at the same (tallest) height
