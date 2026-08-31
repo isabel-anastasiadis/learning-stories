@@ -778,26 +778,35 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     return lines;
   }
 
-  async function renderGoalStickerImage(g) {
-    await document.fonts.ready;
-    const SCALE = 2; // render at 2x for crisp text when printed
-    const WIDTH = 340;
+  function computeStickerLines(g, width) {
     const PAD = 12;
-    const textMaxWidth = WIDTH - PAD * 2;
-
-    // measure first at 1x to compute required height
+    const textMaxWidth = width - PAD * 2;
     const measureCanvas = document.createElement('canvas');
     const mctx = measureCanvas.getContext('2d');
-
     mctx.font = '700 12.5px "Nunito Sans"';
     const titleText = `${g.strand} · Goal ${g.goal} — ${g.text}`;
-    const titleLines = wrapCanvasText(mctx, titleText, textMaxWidth);
+    return wrapCanvasText(mctx, titleText, textMaxWidth);
+  }
 
+  async function measureStickerHeight(g, width) {
+    await document.fonts.ready;
+    const PAD = 12;
     const titleLineHeight = 16;
-    const height = PAD * 2 + titleLines.length * titleLineHeight;
+    const lines = computeStickerLines(g, width);
+    return PAD * 2 + lines.length * titleLineHeight;
+  }
+
+  async function renderGoalStickerImage(g, width, forcedHeight) {
+    await document.fonts.ready;
+    const SCALE = 2; // render at 2x for crisp text when printed
+    const PAD = 12;
+    const titleLineHeight = 16;
+    const titleLines = computeStickerLines(g, width);
+    const naturalHeight = PAD * 2 + titleLines.length * titleLineHeight;
+    const height = forcedHeight || naturalHeight;
 
     const canvas = document.createElement('canvas');
-    canvas.width = WIDTH * SCALE;
+    canvas.width = width * SCALE;
     canvas.height = height * SCALE;
     const ctx = canvas.getContext('2d');
     ctx.scale(SCALE, SCALE);
@@ -807,10 +816,10 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     ctx.fillStyle = '#' + g.colorFill;
     ctx.beginPath();
     ctx.moveTo(radius, 0);
-    ctx.arcTo(WIDTH, 0, WIDTH, height, radius);
-    ctx.arcTo(WIDTH, height, 0, height, radius);
+    ctx.arcTo(width, 0, width, height, radius);
+    ctx.arcTo(width, height, 0, height, radius);
     ctx.arcTo(0, height, 0, 0, radius);
-    ctx.arcTo(0, 0, WIDTH, 0, radius);
+    ctx.arcTo(0, 0, width, 0, radius);
     ctx.closePath();
     ctx.fill();
 
@@ -824,13 +833,16 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     ctx.fillRect(0, 0, 4, height);
 
     // title (strand/goal + description on the same line, wrapped) — no outcome
-    // text anymore, to keep these compact enough to sit in the page footer
+    // text anymore, to keep these compact enough to sit in the page footer.
+    // Vertically centred within the (possibly taller, for row-uniformity) box.
     ctx.fillStyle = '#' + g.colorText;
     ctx.font = '700 12.5px "Nunito Sans"';
     ctx.textBaseline = 'top';
-    titleLines.forEach((line, i) => ctx.fillText(line, PAD, PAD + i * titleLineHeight));
+    const textBlockHeight = titleLines.length * titleLineHeight;
+    const startY = (height - textBlockHeight) / 2;
+    titleLines.forEach((line, i) => ctx.fillText(line, PAD, startY + i * titleLineHeight));
 
-    return { dataUrl: canvas.toDataURL('image/png'), width: WIDTH, height };
+    return { dataUrl: canvas.toDataURL('image/png'), width, height };
   }
 
   function guessImageType(dataUrl) {
@@ -893,26 +905,18 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const TITLE_SOFT_BLACK = '333333';
     const BODY_INK = '1A1A1A';
 
+    function spacer() { return new Paragraph({ children: [], spacing: { after: 0 } }); }
+
     const children = [
       new Paragraph({
         children: [new TextRun({ text: title, font: 'Calibri', bold: true, size: 80, color: TITLE_SOFT_BLACK })],
         spacing: { after: 80 }
-      }),
-      new Paragraph({
-        children: [new TextRun({
-          text: [observer ? `Observed by ${observer}` : '', dateStr, childrenNames ? `With: ${childrenNames}` : '']
-            .filter(Boolean).join('   •   '),
-          font: 'Calibri',
-          italics: true,
-          size: 30,
-          color: META_GREY
-        })],
-        spacing: { after: 200 }
       })
     ];
 
     // --- photos, floating side-by-side in rows with "break text" (top/bottom) wrap ---
     if (photos.length) {
+      children.push(spacer());
       const gapPx = 14;
       const rows = chunk(photos, 3);
       for (const row of rows) {
@@ -931,12 +935,13 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     }
 
     function pushLabelledText(label, text) {
+      children.push(spacer());
       children.push(new Paragraph({
         children: [new TextRun({
           text: label, font: 'Calibri', bold: true, size: 32, color: HEADING_GREY,
           allCaps: true, characterSpacing: 20
         })],
-        spacing: { before: 160, after: 60 }
+        spacing: { after: 60 }
       }));
       if (!text) return;
       text.split(/\n/).forEach(line => {
@@ -952,35 +957,67 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     pushLabelledText('How could we extend this next time?', extend);
 
     if (!selectedGoalIds.length) {
+      children.push(spacer());
       children.push(new Paragraph({
         children: [new TextRun({
           text: 'Whāriki goals', font: 'Calibri', bold: true, size: 32, color: HEADING_GREY,
           allCaps: true, characterSpacing: 20
         })],
-        spacing: { before: 200, after: 120 }
+        spacing: { after: 120 }
       }));
     }
 
-    // --- Whāriki goals, as packed sticker images (2 per row) in the page footer ---
-    // Rendered as flat images (not live Word text/tables) so they: (a) can sit
-    // narrow and tight without fighting Word's table-width quirks, (b) never split
-    // mid-box across a page break. Living in a real footer (rather than floating
-    // in the body) means they always sit at the bottom of the page regardless of
-    // how much or little other content there is — no more interleaving with
-    // nearby headings, which floating-in-body was prone to.
+    // --- Header: "Observed by / date / children" details, right-aligned so
+    // wrapped tamariki names cluster together on the right rather than
+    // spreading across the full width ---
+    const { Header, AlignmentType } = window.docx;
+    const header = new Header({
+      children: [new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [new TextRun({
+          text: [observer ? `Observed by ${observer}` : '', dateStr, childrenNames ? `With: ${childrenNames}` : '']
+            .filter(Boolean).join('   •   '),
+          font: 'Calibri',
+          size: 24,
+          color: META_GREY
+        })]
+      })]
+    });
+
+    // --- Whāriki goals, as packed sticker images in the page footer ---
+    // Rendered as flat images so they: (a) can sit narrow and tight without
+    // fighting Word's table-width quirks, (b) never split mid-box across a page
+    // break. Living in a real footer means they always sit at the bottom of the
+    // page regardless of how much/little other content there is.
+    // Layout: 1 → single, 2 → two columns one row, 3 → three columns one row,
+    // 4 → two columns two rows, 5+ → wraps by 3. All stickers in a row are
+    // rendered at the SAME height (the tallest one needed in that row) so they
+    // line up cleanly and are easy to nudge into place afterwards.
     let footer;
     if (selectedGoalIds.length) {
       const { Footer } = window.docx;
       const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
       const gapPx = 12;
-      const rows = chunk(goals, 2);
+
+      let rows;
+      if (goals.length === 4) rows = [goals.slice(0, 2), goals.slice(2, 4)];
+      else if (goals.length <= 3) rows = [goals];
+      else rows = chunk(goals, 3);
+
       const footerChildren = [];
       for (const row of rows) {
+        const stickerWidthPx = Math.floor((contentWidthPx - gapPx * (row.length - 1)) / row.length);
+
+        // measure each goal's natural height at this width first, so every
+        // sticker in the row can be drawn at the same (tallest) height
+        const naturalHeights = await Promise.all(row.map(g => measureStickerHeight(g, stickerWidthPx)));
+        const rowHeight = Math.max(...naturalHeights);
+
         const items = [];
         for (const g of row) {
-          const { dataUrl, width, height } = await renderGoalStickerImage(g);
+          const { dataUrl } = await renderGoalStickerImage(g, stickerWidthPx, rowHeight);
           const bytes = await dataUrlToBytes(dataUrl);
-          items.push({ bytes, type: 'png', w: width, h: height });
+          items.push({ bytes, type: 'png', w: stickerWidthPx, h: rowHeight });
         }
         footerChildren.push(buildFloatingImageRow(items, gapPx));
       }
@@ -992,9 +1029,10 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         properties: {
           page: {
             size: { width: 11906, height: 16838 },
-            margin: { top: 720, bottom: 720, left: 720, right: 720 }
+            margin: { top: 720, bottom: 720, left: 720, right: 720, header: 425, footer: 0 }
           }
         },
+        headers: { default: header },
         footers: footer ? { default: footer } : undefined,
         children
       }]
