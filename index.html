@@ -333,6 +333,10 @@
   </div>
 
   <label class="toggle-label" style="margin-bottom: 12px;">
+    <input type="checkbox" id="include-goal-outcomes" checked>
+    <span>Include goal outcomes in the learning section</span>
+  </label>
+  <label class="toggle-label" style="margin-bottom: 12px;">
     <input type="checkbox" id="include-empty-headings">
     <span>Include empty headings (as prompts to fill in later)</span>
   </label>
@@ -954,9 +958,10 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     }
 
     const includeEmptyHeadings = document.getElementById('include-empty-headings').checked;
+    const includeGoalOutcomes = document.getElementById('include-goal-outcomes').checked && selectedGoalIds.length > 0;
 
-    function pushLabelledText(label, text) {
-      if (!text && !includeEmptyHeadings) return;
+    function pushLabelledText(label, text, hasExtraContent) {
+      if (!text && !hasExtraContent && !includeEmptyHeadings) return;
       children.push(spacer());
       children.push(new Paragraph({
         children: [new TextRun({
@@ -975,12 +980,14 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     }
 
     pushLabelledText('What did I observe?', notice);
-    pushLabelledText('What learning did I notice?', learning);
+    // goal outcomes (if included) count as content for this section, so the
+    // heading shows even if the "learning" textarea itself is empty
+    pushLabelledText('What learning did I notice?', learning, includeGoalOutcomes);
 
-    // If any Whāriki goals are selected, list their learning outcomes as
-    // bullet points here — the footer stickers show which goals were selected,
-    // this is where the fuller "what does that actually look like" detail lives
-    if (selectedGoalIds.length) {
+    // If included (via the checkbox) and any Whāriki goals are selected, list
+    // their learning outcomes as bullet points here — the footer stickers show
+    // which goals were selected, this is where the fuller detail lives
+    if (includeGoalOutcomes) {
       const outcomeGoals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
       outcomeGoals.forEach(g => {
         children.push(new Paragraph({
@@ -1168,7 +1175,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   // --- Draft caching: photos + all field values persist across a page refresh ---
   const DRAFT_FIELDS_KEY = 'korero_draft_fields';
   const DRAFT_PHOTOS_KEY = 'korero_draft_photos';
-  const DRAFT_FIELD_IDS = ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings'];
+  const DRAFT_FIELD_IDS = ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings', 'include-goal-outcomes'];
 
   function saveDraftFields() {
     try {
@@ -1228,7 +1235,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
   // wire up auto-save for every plain field (goals/photos already trigger it
   // via their own render functions, so they're not repeated here)
-  ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings']
+  ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings', 'include-goal-outcomes']
     .forEach(id => document.getElementById(id).addEventListener('input', saveDraftFields));
 
   document.getElementById('reset-draft-btn').addEventListener('click', () => {
