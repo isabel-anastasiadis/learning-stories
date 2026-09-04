@@ -30,6 +30,7 @@
   }
   body { padding: 20px 16px 60px; max-width: 560px; margin: 0 auto; }
 
+  .brand-row { display: flex; justify-content: space-between; align-items: center; }
   .brand {
     display: flex; align-items: baseline; gap: 8px;
     margin-bottom: 4px;
@@ -41,6 +42,11 @@
   .brand-sub {
     font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase;
     color: var(--ink-soft);
+  }
+  .text-btn {
+    background: none; border: none; color: var(--ink-soft); font-size: 13px;
+    font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: underline;
+    padding: 4px;
   }
   p.tagline { margin: 0 0 var(--field-gap); color: var(--ink-soft); font-size: 14px; }
 
@@ -195,9 +201,12 @@
 </head>
 <body>
 
-  <div class="brand">
-    <span class="brand-mark">Kōrero</span>
-    <span class="brand-sub">Learning Story</span>
+  <div class="brand-row">
+    <div class="brand">
+      <span class="brand-mark">Kōrero</span>
+      <span class="brand-sub">Learning Story</span>
+    </div>
+    <button type="button" class="text-btn" id="reset-draft-btn">Reset</button>
   </div>
   <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
 
@@ -323,6 +332,10 @@
     <input type="text" id="title" placeholder="e.g. Building the tallest tower">
   </div>
 
+  <label class="toggle-label" style="margin-bottom: 12px;">
+    <input type="checkbox" id="include-empty-headings">
+    <span>Include empty headings (as prompts to fill in later)</span>
+  </label>
   <button class="generate-btn" id="generate-btn">Create Word Document</button>
   <div class="status" id="status"></div>
 
@@ -577,6 +590,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       });
       photoGrid.appendChild(thumb);
     });
+    saveDraftPhotos();
   }
 
   function handlePhotoFiles(inputEl) {
@@ -745,6 +759,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       });
       goalChipsEl.appendChild(chip);
     });
+    saveDraftFields();
   }
 
   function loadImageDims(dataUrl) {
@@ -938,7 +953,10 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       }
     }
 
+    const includeEmptyHeadings = document.getElementById('include-empty-headings').checked;
+
     function pushLabelledText(label, text) {
+      if (!text && !includeEmptyHeadings) return;
       children.push(spacer());
       children.push(new Paragraph({
         children: [new TextRun({
@@ -974,7 +992,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     }
     pushLabelledText('How could we extend this next time?', extend);
 
-    if (!selectedGoalIds.length) {
+    if (!selectedGoalIds.length && includeEmptyHeadings) {
       children.push(spacer());
       children.push(new Paragraph({
         children: [new TextRun({
@@ -1121,6 +1139,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
           renderGoalChips();
           photos = [];
           renderPhotoGrid();
+          clearDraft();
           btn.disabled = false;
           btn.textContent = 'Create Word Document';
           return;
@@ -1136,6 +1155,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       renderGoalChips();
       photos = [];
       renderPhotoGrid();
+      clearDraft();
     } catch (err) {
       status.textContent = 'Something went wrong generating the document.';
       console.error(err);
@@ -1144,6 +1164,80 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       btn.textContent = 'Create Word Document';
     }
   });
+
+  // --- Draft caching: photos + all field values persist across a page refresh ---
+  const DRAFT_FIELDS_KEY = 'korero_draft_fields';
+  const DRAFT_PHOTOS_KEY = 'korero_draft_photos';
+  const DRAFT_FIELD_IDS = ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings'];
+
+  function saveDraftFields() {
+    try {
+      const data = {};
+      DRAFT_FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        data[id] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      data.selectedGoalIds = selectedGoalIds.slice();
+      localStorage.setItem(DRAFT_FIELDS_KEY, JSON.stringify(data));
+    } catch (e) { /* storage unavailable — draft just won't persist */ }
+  }
+
+  function saveDraftPhotos() {
+    try {
+      localStorage.setItem(DRAFT_PHOTOS_KEY, JSON.stringify(photos));
+    } catch (e) {
+      // most likely a quota error from too many/too-large photos — draft still
+      // works for everything else, just silently skip caching photos this time
+    }
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_FIELDS_KEY);
+      localStorage.removeItem(DRAFT_PHOTOS_KEY);
+    } catch (e) { /* ignore */ }
+  }
+
+  function loadDraft() {
+    try {
+      const rawFields = localStorage.getItem(DRAFT_FIELDS_KEY);
+      if (rawFields) {
+        const data = JSON.parse(rawFields);
+        DRAFT_FIELD_IDS.forEach(id => {
+          if (!(id in data)) return;
+          const el = document.getElementById(id);
+          if (el.type === 'checkbox') el.checked = data[id];
+          else el.value = data[id];
+        });
+        if (data.selectedGoalIds && data.selectedGoalIds.length) {
+          selectedGoalIds.push(...data.selectedGoalIds);
+          renderGoalChips();
+        }
+        updateDatePreview();
+      }
+      const rawPhotos = localStorage.getItem(DRAFT_PHOTOS_KEY);
+      if (rawPhotos) {
+        const restoredPhotos = JSON.parse(rawPhotos);
+        if (restoredPhotos.length) {
+          photos = restoredPhotos;
+          renderPhotoGrid();
+        }
+      }
+    } catch (e) { /* ignore corrupt/unavailable draft, just start fresh */ }
+  }
+
+  // wire up auto-save for every plain field (goals/photos already trigger it
+  // via their own render functions, so they're not repeated here)
+  ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings']
+    .forEach(id => document.getElementById(id).addEventListener('input', saveDraftFields));
+
+  document.getElementById('reset-draft-btn').addEventListener('click', () => {
+    if (!confirm("Clear everything you've entered and start fresh? This can't be undone.")) return;
+    clearDraft();
+    location.reload();
+  });
+
+  loadDraft();
 </script>
 
 </body>
