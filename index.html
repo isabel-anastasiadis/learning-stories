@@ -71,7 +71,7 @@
     outline: none; border-color: var(--sage);
     box-shadow: 0 0 0 3px rgba(110,138,111,0.15);
   }
-  textarea { min-height: 100px; resize: vertical; line-height: 1.45; }
+  textarea { min-height: 100px; resize: none; overflow: hidden; line-height: 1.45; }
   .hint { font-size: 12.5px; color: var(--ink-soft); margin-top: 5px; }
 
   input[type="date"] {
@@ -169,6 +169,22 @@
   .goal-chip .x { font-size: 14px; line-height: 1; flex-shrink: 0; }
   .goal-empty-hint { font-size: 12.5px; color: var(--ink-soft); padding: 6px 2px; }
 
+  .name-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .name-chip-row:empty { margin-top: 0; }
+  .name-suggestion-btn {
+    background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  .name-suggestion-btn:active { background: #F1EDE3; }
+  .name-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #E9EFE6; color: var(--sage-dark);
+    font-size: 12.5px; font-weight: 700; padding: 6px 6px 6px 11px; border-radius: 16px;
+    border: none; cursor: pointer; font-family: inherit;
+  }
+  .name-chip .x { font-size: 14px; line-height: 1; }
+
   .settings-details { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
   .api-key-badge {
     display: block; width: 100%; box-sizing: border-box;
@@ -213,6 +229,16 @@
   <details class="field-details settings-details">
     <summary>⚙️ Settings</summary>
     <div class="details-body">
+      <div class="field">
+        <label for="saved-names-input">Tamariki names</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="saved-names-input" placeholder="Add a name">
+          <button type="button" class="secondary-btn" id="add-saved-name-btn" style="flex-shrink: 0; white-space: nowrap;">Add</button>
+        </div>
+        <div class="name-chip-row" id="saved-names-chips"></div>
+        <div class="hint">Add each child's name once here — then tap to add them to a story instead of typing.</div>
+      </div>
+
       <div class="field">
         <label class="toggle-label">
           <input type="checkbox" id="ai-enabled-toggle">
@@ -276,8 +302,11 @@
   </div>
 
   <div class="field">
-    <label for="children-names">Children's names <span class="optional-tag">optional</span></label>
-    <input type="text" id="children-names" placeholder="e.g. Aroha, Tama">
+    <label for="children-names-typer">Children's names <span class="optional-tag">optional</span></label>
+    <input type="text" id="children-names-typer" placeholder="Start typing a name">
+    <div class="name-chip-row" id="name-suggestions"></div>
+    <div class="name-chip-row" id="children-names-chips" style="margin-top: 6px;"></div>
+    <input type="hidden" id="children-names">
   </div>
 
   <div class="field">
@@ -333,7 +362,7 @@
   </div>
 
   <label class="toggle-label" style="margin-bottom: 12px;">
-    <input type="checkbox" id="include-goal-outcomes" checked>
+    <input type="checkbox" id="include-goal-outcomes">
     <span>Include goal outcomes in the learning section</span>
   </label>
   <label class="toggle-label" style="margin-bottom: 12px;">
@@ -347,6 +376,16 @@
 
 
 <script>
+  // --- Auto-growing textareas (Safari's manual resize handle is fiddly to use) ---
+  function autoGrowTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+  ['notice', 'learning', 'extend'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => autoGrowTextarea(el));
+  });
+
   // --- API key settings (stored locally on this device only) ---
   const API_KEY_STORAGE_KEY = 'korero_claude_api_key';
   const apiKeyInput = document.getElementById('api-key-input');
@@ -428,6 +467,137 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   tidyPromptInput.value = safeGet(AI_PROMPT_KEY, DEFAULT_TIDY_PROMPT);
   contextTermsInput.value = safeGet(AI_CONTEXT_TERMS_KEY, '');
   contextTermsInput.addEventListener('input', () => safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value));
+
+  // --- Tamariki names: a saved list (managed in Settings) that can be quickly
+  // tapped to add to a story, plus free typing for names not on the list ---
+  const SAVED_NAMES_KEY = 'korero_saved_names';
+  function sortNames() { savedNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); }
+  let savedNames = [];
+  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')); } catch (e) { savedNames = []; }
+  sortNames();
+  let selectedNames = [];
+
+  const savedNamesInput = document.getElementById('saved-names-input');
+  const addSavedNameBtn = document.getElementById('add-saved-name-btn');
+  const savedNamesChipsEl = document.getElementById('saved-names-chips');
+  const namesTyperInput = document.getElementById('children-names-typer');
+  const nameSuggestionsEl = document.getElementById('name-suggestions');
+  const childrenNamesChipsEl = document.getElementById('children-names-chips');
+  const childrenNamesHidden = document.getElementById('children-names');
+
+  function persistSavedNames() {
+    try { localStorage.setItem(SAVED_NAMES_KEY, JSON.stringify(savedNames)); } catch (e) { /* ignore */ }
+  }
+
+  function renderSavedNamesSettings() {
+    savedNamesChipsEl.innerHTML = '';
+    savedNames.forEach(name => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'name-chip';
+      chip.innerHTML = `<span>${name}</span><span class="x">×</span>`;
+      chip.addEventListener('click', () => {
+        savedNames = savedNames.filter(n => n !== name);
+        persistSavedNames();
+        renderSavedNamesSettings();
+        renderNameSuggestions();
+      });
+      savedNamesChipsEl.appendChild(chip);
+    });
+  }
+  renderSavedNamesSettings();
+
+  addSavedNameBtn.addEventListener('click', () => {
+    const val = savedNamesInput.value.trim();
+    if (!val || savedNames.includes(val)) { savedNamesInput.value = ''; return; }
+    savedNames.push(val);
+    sortNames();
+    persistSavedNames();
+    savedNamesInput.value = '';
+    renderSavedNamesSettings();
+    renderNameSuggestions();
+  });
+  savedNamesInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addSavedNameBtn.click(); }
+  });
+
+  function syncSelectedNames() {
+    childrenNamesHidden.value = selectedNames.join(', ');
+    saveDraftFields();
+  }
+
+  function renderSelectedNameChips() {
+    childrenNamesChipsEl.innerHTML = '';
+    selectedNames.forEach(name => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'name-chip';
+      chip.innerHTML = `<span>${name}</span><span class="x">×</span>`;
+      chip.addEventListener('click', () => {
+        selectedNames = selectedNames.filter(n => n !== name);
+        renderSelectedNameChips();
+        renderNameSuggestions();
+        syncSelectedNames();
+      });
+      childrenNamesChipsEl.appendChild(chip);
+    });
+  }
+
+  function addSelectedName(name) {
+    name = name.trim();
+    if (!name || selectedNames.includes(name)) return;
+    selectedNames.push(name);
+    renderSelectedNameChips();
+    renderNameSuggestions();
+    syncSelectedNames();
+  }
+
+  let namesInputFocused = false;
+
+  function renderNameSuggestions() {
+    nameSuggestionsEl.innerHTML = '';
+    if (!namesInputFocused) return;
+    const query = namesTyperInput.value.trim().toLowerCase();
+    savedNames
+      .filter(name => !selectedNames.includes(name))
+      .filter(name => !query || name.toLowerCase().includes(query))
+      .forEach(name => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'name-suggestion-btn';
+        btn.textContent = name;
+        btn.addEventListener('click', () => {
+          addSelectedName(name);
+          namesTyperInput.value = '';
+          renderNameSuggestions();
+          namesTyperInput.focus();
+        });
+        nameSuggestionsEl.appendChild(btn);
+      });
+  }
+  renderNameSuggestions();
+
+  namesTyperInput.addEventListener('focus', () => {
+    namesInputFocused = true;
+    renderNameSuggestions();
+  });
+  namesTyperInput.addEventListener('blur', () => {
+    // small delay so a tap on a suggestion button still registers before it disappears
+    setTimeout(() => {
+      namesInputFocused = false;
+      renderNameSuggestions();
+    }, 150);
+  });
+
+  namesTyperInput.addEventListener('input', renderNameSuggestions);
+  namesTyperInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addSelectedName(namesTyperInput.value);
+      namesTyperInput.value = '';
+      renderNameSuggestions();
+    }
+  });
 
   const aiSubSettings = document.getElementById('ai-sub-settings');
   const allTidyButtons = document.querySelectorAll('.tidy-btn');
@@ -517,6 +687,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
         if (cleaned) {
           fieldEl.value = cleaned;
+          autoGrowTextarea(fieldEl);
           statusEl.textContent = 'Tidied up! Feel free to edit further.';
         } else {
           statusEl.textContent = "Didn't get a result back — try again.";
@@ -1220,6 +1391,11 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
           selectedGoalIds.push(...data.selectedGoalIds);
           renderGoalChips();
         }
+        if (data['children-names']) {
+          selectedNames = data['children-names'].split(',').map(s => s.trim()).filter(Boolean);
+          renderSelectedNameChips();
+          renderNameSuggestions();
+        }
         updateDatePreview();
       }
       const rawPhotos = localStorage.getItem(DRAFT_PHOTOS_KEY);
@@ -1245,6 +1421,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   });
 
   loadDraft();
+  ['notice', 'learning', 'extend'].forEach(id => autoGrowTextarea(document.getElementById(id)));
 </script>
 
 </body>
