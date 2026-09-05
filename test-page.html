@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Sheets Sync — Test Page</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 520px; margin: 20px auto; padding: 0 16px; line-height: 1.5;
+    color: #2E2A25; background: #FBF7F0;
+  }
+  h1 { font-size: 20px; }
+  h2 { font-size: 15px; margin-top: 28px; border-top: 1px solid #E7E0D3; padding-top: 16px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+  input[type="text"] {
+    width: 100%; box-sizing: border-box; padding: 10px; font-size: 14px;
+    border: 1px solid #E7E0D3; border-radius: 8px; font-family: inherit;
+  }
+  button {
+    margin-top: 10px; padding: 10px 16px; font-size: 14px; font-weight: 700;
+    border: 1.5px solid #52694F; background: #fff; color: #52694F;
+    border-radius: 8px; cursor: pointer; font-family: inherit;
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: #52694F; color: #fff; }
+  #log {
+    margin-top: 20px; background: #fff; border: 1px solid #E7E0D3; border-radius: 8px;
+    padding: 12px; font-family: 'SF Mono', Consolas, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto;
+  }
+  .status { font-size: 13px; color: #6B6459; margin-top: 6px; }
+  .step { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<h1>🧪 Google Sheets Sync — Test Page</h1>
+<p class="status">Throwaway test page — not the real app. Testing whether sign-in, token behaviour, and read/write actually work smoothly, especially on iPhone Safari.</p>
+
+<h2>1. Setup</h2>
+<label for="client-id">Google OAuth Client ID</label>
+<input type="text" id="client-id" placeholder="xxxxxxxxxx.apps.googleusercontent.com">
+
+<label for="sheet-id">Spreadsheet ID</label>
+<input type="text" id="sheet-id" placeholder="the long ID from the sheet's URL">
+
+<button id="save-config-btn">Save these (this device only)</button>
+<div class="status" id="config-status"></div>
+
+<h2>2. Sign in</h2>
+<button id="signin-btn" class="primary" disabled>Sign in with Google</button>
+<div class="status" id="auth-status">Not signed in.</div>
+
+<h2>3. Try reading/writing cell A1</h2>
+<button id="read-btn" disabled>Read A1</button>
+<br>
+<label for="write-value">Value to write to A1</label>
+<input type="text" id="write-value" placeholder="e.g. hello from the test page">
+<button id="write-btn" disabled>Write to A1</button>
+
+<h2>Log</h2>
+<div id="log">(nothing yet)</div>
+
+<script>
+  const clientIdInput = document.getElementById('client-id');
+  const sheetIdInput = document.getElementById('sheet-id');
+  const signinBtn = document.getElementById('signin-btn');
+  const readBtn = document.getElementById('read-btn');
+  const writeBtn = document.getElementById('write-btn');
+  const writeValueInput = document.getElementById('write-value');
+  const authStatus = document.getElementById('auth-status');
+  const configStatus = document.getElementById('config-status');
+  const logEl = document.getElementById('log');
+
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    logEl.textContent = `[${time}] ${msg}\n\n` + logEl.textContent;
+  }
+
+  // Restore saved config (this device only, plain localStorage — this is a
+  // throwaway test page, not the real settings storage design)
+  clientIdInput.value = localStorage.getItem('test_client_id') || '';
+  sheetIdInput.value = localStorage.getItem('test_sheet_id') || '';
+  if (clientIdInput.value) signinBtn.disabled = false;
+
+  document.getElementById('save-config-btn').addEventListener('click', () => {
+    localStorage.setItem('test_client_id', clientIdInput.value.trim());
+    localStorage.setItem('test_sheet_id', sheetIdInput.value.trim());
+    configStatus.textContent = 'Saved. You can now try signing in.';
+    signinBtn.disabled = !clientIdInput.value.trim();
+    log('Config saved.');
+  });
+
+  let accessToken = null;
+  let tokenClient = null;
+  let tokenAcquiredAt = null;
+
+  function ensureTokenClient() {
+    if (tokenClient) return tokenClient;
+    const clientId = clientIdInput.value.trim();
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: (resp) => {
+        if (resp.error) {
+          log('Sign-in error: ' + JSON.stringify(resp));
+          authStatus.textContent = 'Sign-in failed — see log.';
+          return;
+        }
+        accessToken = resp.access_token;
+        tokenAcquiredAt = new Date();
+        const expiresInMin = Math.round(resp.expires_in / 60);
+        authStatus.textContent = `Signed in. Token acquired ${tokenAcquiredAt.toLocaleTimeString()}, expires in ~${expiresInMin} min.`;
+        log(`Got access token. Expires in ${resp.expires_in}s (~${expiresInMin} min).`);
+        readBtn.disabled = false;
+        writeBtn.disabled = false;
+      }
+    });
+    return tokenClient;
+  }
+
+  signinBtn.addEventListener('click', () => {
+    if (!clientIdInput.value.trim()) {
+      alert('Paste in your Client ID and hit "Save these" first.');
+      return;
+    }
+    log('Requesting access token (this should prompt a Google sign-in)...');
+    ensureTokenClient().requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+  });
+
+  async function sheetsFetch(method, extraPath, body) {
+    const sheetId = sheetIdInput.value.trim();
+    if (!sheetId) { alert('Paste in a Spreadsheet ID first.'); return null; }
+    if (!accessToken) { alert('Sign in first.'); return null; }
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${extraPath}`;
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      log(`ERROR (${res.status}): ` + JSON.stringify(data, null, 2));
+      if (res.status === 401) {
+        log('Token likely expired — try Sign in again to get a fresh one.');
+      }
+      return null;
+    }
+    return data;
+  }
+
+  readBtn.addEventListener('click', async () => {
+    log('Reading A1...');
+    const data = await sheetsFetch('GET', 'A1');
+    if (data) log('Read result: ' + JSON.stringify(data));
+  });
+
+  writeBtn.addEventListener('click', async () => {
+    const val = writeValueInput.value;
+    log(`Writing "${val}" to A1...`);
+    const data = await sheetsFetch(
+      'PUT',
+      'A1?valueInputOption=RAW',
+      { values: [[val]] }
+    );
+    if (data) log('Write result: ' + JSON.stringify(data));
+  });
+</script>
+
+</body>
+</html>
