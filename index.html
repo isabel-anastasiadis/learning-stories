@@ -303,7 +303,9 @@
 
   <div class="field">
     <label for="children-names-typer">Children's names <span class="optional-tag">optional</span></label>
-    <input type="text" id="children-names-typer" placeholder="Start typing a name">
+    <form id="names-form" onsubmit="return false;">
+      <input type="text" id="children-names-typer" placeholder="Start typing a name">
+    </form>
     <div class="name-chip-row" id="name-suggestions"></div>
     <div class="name-chip-row" id="children-names-chips" style="margin-top: 6px;"></div>
     <input type="hidden" id="children-names">
@@ -582,16 +584,29 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     renderNameSuggestions();
   });
   namesTyperInput.addEventListener('blur', () => {
-    // small delay so a tap on a suggestion button still registers before it disappears
+    // small delay so a tap on a suggestion button still registers before it disappears —
+    // but if focus already came straight back to this input (e.g. right after picking a
+    // suggestion), don't clear things out from under it
     setTimeout(() => {
+      if (document.activeElement === namesTyperInput) return;
       namesInputFocused = false;
       renderNameSuggestions();
     }, 150);
   });
 
   namesTyperInput.addEventListener('input', renderNameSuggestions);
+
+  // Mobile virtual keyboards' Enter/Go/Done button doesn't reliably fire a normal
+  // keydown 'Enter' event — wrapping the input in a form and listening for submit
+  // is the robust cross-device way to catch that action
+  document.getElementById('names-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    addSelectedName(namesTyperInput.value);
+    namesTyperInput.value = '';
+    renderNameSuggestions();
+  });
   namesTyperInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === ',') {
       e.preventDefault();
       addSelectedName(namesTyperInput.value);
       namesTyperInput.value = '';
@@ -1265,7 +1280,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         properties: {
           page: {
             size: { width: 11906, height: 16838 },
-            margin: { top: 720, bottom: 720, left: 720, right: 720, header: 425, footer: 0 }
+            margin: { top: 720, bottom: 720, left: 720, right: 720, header: 425, footer: 142 }
           }
         },
         headers: { default: header },
