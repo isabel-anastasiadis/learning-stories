@@ -554,6 +554,17 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     syncSelectedNames();
   }
 
+  // Safety net: if someone types a name but never explicitly commits it
+  // (doesn't hit Enter, taps away instead), don't silently lose it —
+  // treat leftover text in the box as an intended name too.
+  function commitPendingNameInput() {
+    const leftover = namesTyperInput.value.trim();
+    if (leftover) {
+      addSelectedName(leftover);
+      namesTyperInput.value = '';
+    }
+  }
+
   let namesInputFocused = false;
 
   function renderNameSuggestions() {
@@ -589,6 +600,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     // suggestion), don't clear things out from under it
     setTimeout(() => {
       if (document.activeElement === namesTyperInput) return;
+      commitPendingNameInput();
       namesInputFocused = false;
       renderNameSuggestions();
     }, 150);
@@ -1297,6 +1309,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   }
 
   document.getElementById('generate-btn').addEventListener('click', async () => {
+    commitPendingNameInput();
     const btn = document.getElementById('generate-btn');
     const status = document.getElementById('status');
     const titleField = document.getElementById('title');
@@ -1436,7 +1449,9 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   });
 
   loadDraft();
-  ['notice', 'learning', 'extend'].forEach(id => autoGrowTextarea(document.getElementById(id)));
+  requestAnimationFrame(() => {
+    ['notice', 'learning', 'extend'].forEach(id => autoGrowTextarea(document.getElementById(id)));
+  });
 </script>
 
 </body>
