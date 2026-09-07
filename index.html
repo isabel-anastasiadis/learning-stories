@@ -231,10 +231,10 @@
     <div class="details-body">
       <div class="field">
         <label for="saved-names-input">Tamariki names</label>
-        <div style="display: flex; gap: 8px;">
-          <input type="text" id="saved-names-input" placeholder="Add a name">
+        <form id="saved-names-form" onsubmit="return false;" style="display: flex; gap: 8px;">
+          <input type="text" id="saved-names-input" placeholder="Add a name (or several, separated by commas)">
           <button type="button" class="secondary-btn" id="add-saved-name-btn" style="flex-shrink: 0; white-space: nowrap;">Add</button>
-        </div>
+        </form>
         <div class="name-chip-row" id="saved-names-chips"></div>
         <div class="hint">Add each child's name once here — then tap to add them to a story instead of typing.</div>
       </div>
@@ -509,18 +509,28 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   }
   renderSavedNamesSettings();
 
-  addSavedNameBtn.addEventListener('click', () => {
-    const val = savedNamesInput.value.trim();
-    if (!val || savedNames.includes(val)) { savedNamesInput.value = ''; return; }
-    savedNames.push(val);
-    sortNames();
-    persistSavedNames();
+  function addSavedNamesFromInput() {
+    const raw = savedNamesInput.value;
+    const names = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (!names.length) return;
+    let changed = false;
+    names.forEach(name => {
+      if (!savedNames.includes(name)) { savedNames.push(name); changed = true; }
+    });
+    if (changed) {
+      sortNames();
+      persistSavedNames();
+      renderSavedNamesSettings();
+      renderNameSuggestions();
+    }
     savedNamesInput.value = '';
-    renderSavedNamesSettings();
-    renderNameSuggestions();
-  });
-  savedNamesInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addSavedNameBtn.click(); }
+  }
+  addSavedNameBtn.addEventListener('click', addSavedNamesFromInput);
+  // form-submit (not keydown) for the same mobile Enter/Go/Done reliability
+  // reason as the main names field
+  document.getElementById('saved-names-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    addSavedNamesFromInput();
   });
 
   function syncSelectedNames() {
@@ -545,22 +555,25 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     });
   }
 
-  function addSelectedName(name) {
-    name = name.trim();
-    if (!name || selectedNames.includes(name)) return;
-    selectedNames.push(name);
+  // Splits on commas so "Aroha, Tama, Mia" (typed in one go, common when a comma
+  // keypress isn't reliably caught on mobile) becomes three separate pills
+  // rather than one pill containing all three names.
+  function addSelectedNames(rawText) {
+    rawText.split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+      if (!selectedNames.includes(name)) selectedNames.push(name);
+    });
     renderSelectedNameChips();
     renderNameSuggestions();
     syncSelectedNames();
   }
 
-  // Safety net: if someone types a name but never explicitly commits it
-  // (doesn't hit Enter, taps away instead), don't silently lose it —
-  // treat leftover text in the box as an intended name too.
+  // Safety net: if someone types a name (or names) but never explicitly commits
+  // it (doesn't hit Enter, taps away instead), don't silently lose it — treat
+  // leftover text in the box as intended name(s) too.
   function commitPendingNameInput() {
     const leftover = namesTyperInput.value.trim();
     if (leftover) {
-      addSelectedName(leftover);
+      addSelectedNames(leftover);
       namesTyperInput.value = '';
     }
   }
@@ -580,7 +593,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         btn.className = 'name-suggestion-btn';
         btn.textContent = name;
         btn.addEventListener('click', () => {
-          addSelectedName(name);
+          addSelectedNames(name);
           namesTyperInput.value = '';
           renderNameSuggestions();
           namesTyperInput.focus();
@@ -610,20 +623,14 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
   // Mobile virtual keyboards' Enter/Go/Done button doesn't reliably fire a normal
   // keydown 'Enter' event — wrapping the input in a form and listening for submit
-  // is the robust cross-device way to catch that action
+  // is the robust cross-device way to catch that action. Comma-splitting happens
+  // here too (rather than trying to catch the comma keystroke itself), since that
+  // has the same mobile-reliability problem as Enter did.
   document.getElementById('names-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    addSelectedName(namesTyperInput.value);
+    addSelectedNames(namesTyperInput.value);
     namesTyperInput.value = '';
     renderNameSuggestions();
-  });
-  namesTyperInput.addEventListener('keydown', (e) => {
-    if (e.key === ',') {
-      e.preventDefault();
-      addSelectedName(namesTyperInput.value);
-      namesTyperInput.value = '';
-      renderNameSuggestions();
-    }
   });
 
   const aiSubSettings = document.getElementById('ai-sub-settings');
