@@ -509,9 +509,21 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   }
   renderSavedNamesSettings();
 
+  // Capitalizes the first letter of each word/hyphen-segment (e.g. "mary-jane"
+  // -> "Mary-Jane"), leaving the rest of each word untouched so unusual
+  // intentional casing elsewhere in a name isn't stomped on. Handles macrons
+  // (āēīōū) correctly since JS string methods work on Unicode by default.
+  function capitalizeName(str) {
+    return str.trim().split(/\s+/).map(word =>
+      word.split('-').map(part =>
+        part.length ? part.charAt(0).toUpperCase() + part.slice(1) : part
+      ).join('-')
+    ).join(' ');
+  }
+
   function addSavedNamesFromInput() {
     const raw = savedNamesInput.value;
-    const names = raw.split(',').map(s => s.trim()).filter(Boolean);
+    const names = raw.split(',').map(s => capitalizeName(s)).filter(Boolean);
     if (!names.length) return;
     let changed = false;
     names.forEach(name => {
@@ -559,7 +571,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   // keypress isn't reliably caught on mobile) becomes three separate pills
   // rather than one pill containing all three names.
   function addSelectedNames(rawText) {
-    rawText.split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+    rawText.split(',').map(s => capitalizeName(s)).filter(Boolean).forEach(name => {
       if (!selectedNames.includes(name)) selectedNames.push(name);
     });
     renderSelectedNameChips();
