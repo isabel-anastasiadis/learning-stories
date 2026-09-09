@@ -50,6 +50,9 @@
 <label for="api-key">Google API Key (for the Picker)</label>
 <input type="text" id="api-key" placeholder="AIza...">
 
+<label for="project-number">Google Cloud Project Number</label>
+<input type="text" id="project-number" placeholder="e.g. 123456789012 — find on Cloud Console home page">
+
 <button id="save-config-btn">Save these (this device only)</button>
 <div class="status" id="config-status"></div>
 
@@ -79,6 +82,7 @@
 <script>
   const clientIdInput = document.getElementById('client-id');
   const apiKeyInput = document.getElementById('api-key');
+  const projectNumberInput = document.getElementById('project-number');
   const signinBtn = document.getElementById('signin-btn');
   const revokeBtn = document.getElementById('revoke-btn');
   const silentBtn = document.getElementById('silent-btn');
@@ -98,11 +102,13 @@
 
   clientIdInput.value = localStorage.getItem('test_client_id') || '';
   apiKeyInput.value = localStorage.getItem('test_api_key') || '';
+  projectNumberInput.value = localStorage.getItem('test_project_number') || '';
   if (clientIdInput.value) signinBtn.disabled = false;
 
   document.getElementById('save-config-btn').addEventListener('click', () => {
     localStorage.setItem('test_client_id', clientIdInput.value.trim());
     localStorage.setItem('test_api_key', apiKeyInput.value.trim());
+    localStorage.setItem('test_project_number', projectNumberInput.value.trim());
     configStatus.textContent = 'Saved. You can now try signing in.';
     signinBtn.disabled = !clientIdInput.value.trim();
     log('Config saved.');
@@ -200,6 +206,7 @@
   chooseFileBtn.addEventListener('click', () => {
     if (!pickerLoaded) { alert('Picker library still loading — try again in a second.'); return; }
     if (!apiKeyInput.value.trim()) { alert('Paste in your API Key and hit "Save these" first.'); return; }
+    if (!projectNumberInput.value.trim()) { alert('Paste in your Google Cloud Project Number and hit "Save these" first — required for drive.file access to actually work.'); return; }
 
     const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
       .setMimeTypes('application/vnd.google-apps.spreadsheet');
@@ -208,6 +215,7 @@
       .addView(view)
       .setOAuthToken(accessToken)
       .setDeveloperKey(apiKeyInput.value.trim())
+      .setAppId(projectNumberInput.value.trim())
       .setCallback((data) => {
         if (data.action === google.picker.Action.PICKED) {
           const file = data.docs[0];
