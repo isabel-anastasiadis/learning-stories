@@ -64,6 +64,8 @@
 <p class="status">Real revocation via Google's own endpoint — this genuinely kills the token server-side, not just locally, so it behaves exactly like real expiry would.</p>
 <button id="revoke-btn" disabled>Force-expire current token</button>
 <button id="silent-btn" disabled>Try silent reauth now</button>
+<br>
+<button id="check-token-btn" disabled>Check token validity (direct with Google)</button>
 
 <h2>3. Choose your settings sheet</h2>
 <button id="choose-file-btn" disabled>Choose file</button>
@@ -86,6 +88,7 @@
   const signinBtn = document.getElementById('signin-btn');
   const revokeBtn = document.getElementById('revoke-btn');
   const silentBtn = document.getElementById('silent-btn');
+  const checkTokenBtn = document.getElementById('check-token-btn');
   const chooseFileBtn = document.getElementById('choose-file-btn');
   const pickedFileEl = document.getElementById('picked-file');
   const readBtn = document.getElementById('read-btn');
@@ -146,6 +149,7 @@
         chooseFileBtn.disabled = false;
         revokeBtn.disabled = false;
         silentBtn.disabled = false;
+        checkTokenBtn.disabled = false;
       }
     });
     return tokenClient;
@@ -193,6 +197,25 @@
   silentBtn.addEventListener('click', () => {
     log('Attempting SILENT reauth (prompt: "") — watch for whether this succeeds invisibly, fails silently, or unexpectedly shows a popup...');
     ensureTokenClient().requestAccessToken({ prompt: '' });
+  });
+
+  // Asks Google directly whether this token is still valid — this endpoint
+  // (unlike revoke) supports normal fetch/CORS, so it gives a definitive,
+  // unambiguous answer, cutting out any question of Sheets-API-specific
+  // caching or behavior being the confusing factor.
+  checkTokenBtn.addEventListener('click', async () => {
+    log('Checking token validity directly with Google (tokeninfo endpoint)...');
+    try {
+      const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
+      const data = await res.json();
+      if (res.ok) {
+        log('Google says this token is still VALID: ' + JSON.stringify(data, null, 2));
+      } else {
+        log('Google says this token is INVALID/expired: ' + JSON.stringify(data, null, 2));
+      }
+    } catch (err) {
+      log('Error checking token: ' + err.message);
+    }
   });
 
   signinBtn.addEventListener('click', () => {
