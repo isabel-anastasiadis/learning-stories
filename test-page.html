@@ -152,19 +152,20 @@
   }
 
   // Real revocation via Google's own endpoint — genuinely kills the token
-  // server-side. Doesn't support CORS, so this has to be a real form POST
-  // (submitted into a hidden iframe so the page itself doesn't navigate away).
+  // server-side. Doesn't support CORS, so this has to be a real form POST.
+  // A hidden <iframe> doesn't work here — Google's account-related endpoints
+  // refuse to be displayed in a frame at all (anti-clickjacking protection),
+  // so that submission was likely silently blocked before it ever reached
+  // Google. Using a real (tiny, auto-closing) tab instead avoids that.
   function revokeToken(token) {
     return new Promise((resolve) => {
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.name = 'revoke-target-' + Date.now();
-      document.body.appendChild(iframe);
+      const winName = 'revoke-target-' + Date.now();
+      const win = window.open('', winName);
 
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = 'https://oauth2.googleapis.com/revoke';
-      form.target = iframe.name;
+      form.target = winName;
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'token';
@@ -172,20 +173,20 @@
       form.appendChild(input);
       document.body.appendChild(form);
       form.submit();
+      document.body.removeChild(form);
 
       setTimeout(() => {
-        document.body.removeChild(form);
-        document.body.removeChild(iframe);
+        if (win && !win.closed) win.close();
         resolve();
-      }, 1000);
+      }, 1200);
     });
   }
 
   revokeBtn.addEventListener('click', async () => {
     if (!accessToken) return;
-    log('Revoking current token via Google\'s revoke endpoint...');
+    log('Revoking current token via Google\'s revoke endpoint (a tab will briefly flash open then close — that\'s expected)...');
     await revokeToken(accessToken);
-    log('Revoke request sent. This token is now genuinely dead server-side — same as real expiry. Try "Try silent reauth now" to see if a fresh one can be obtained invisibly.');
+    log('Revoke request sent. This token should now be genuinely dead server-side — same as real expiry. Try "Read A1" to confirm it now actually fails, then try "Try silent reauth now" to get a fresh one.');
     authStatus.textContent = 'Token forcibly revoked (simulating expiry).';
   });
 
