@@ -247,6 +247,10 @@
   let mockFileConnected = false;
   let dirtySinceLastPush = false;
 
+  function updateDirtyBannerVisibility() {
+    dirtyBanner.style.display = (dirtySinceLastPush && locShared.checked) ? 'flex' : 'none';
+  }
+
   function refreshLockState() {
     const shared = locShared.checked;
     sharedPanel.style.display = shared ? '' : 'none';
@@ -257,7 +261,7 @@
       msgEl.style.display = (shared && !unlocked) ? '' : 'none';
     });
 
-    if (!shared) dirtyBanner.style.display = 'none';
+    updateDirtyBannerVisibility();
   }
   [locLocal, locShared].forEach(r => r.addEventListener('change', () => { refreshLockState(); persistSyncState(); }));
 
@@ -280,7 +284,7 @@
 
   function clearDirty() {
     dirtySinceLastPush = false;
-    dirtyBanner.style.display = 'none';
+    updateDirtyBannerVisibility();
   }
 
   function doPush() {
@@ -342,9 +346,8 @@
   document.getElementById('save-shortcut-btn').addEventListener('click', doPush);
 
   function markDirty() {
-    if (!locShared.checked) return;
     dirtySinceLastPush = true;
-    dirtyBanner.style.display = 'flex';
+    updateDirtyBannerVisibility();
     persistSyncState();
   }
 
@@ -366,14 +369,11 @@
       }
       if (saved.lastPulled) pullStatusEl.textContent = saved.lastPulled;
       if (saved.lastPushed) pushStatusEl.textContent = saved.lastPushed;
-      if (saved.storageLocation === 'shared' && saved.dirty) {
-        dirtySinceLastPush = true;
-      }
+      if (saved.dirty) dirtySinceLastPush = true;
     }
   })();
 
   refreshLockState();
-  if (dirtySinceLastPush && locShared.checked) dirtyBanner.style.display = 'flex';
 
   // ---------------------------------------------------------------
   // Below: tamariki names + AI settings logic, carried over as-is
