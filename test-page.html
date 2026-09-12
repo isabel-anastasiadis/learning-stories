@@ -18,6 +18,11 @@
     color: var(--ink); background: var(--bg);
   }
   h1 { font-size: 20px; }
+  .back-link {
+    display: inline-block; font-size: 13.5px; font-weight: 700;
+    color: var(--sage-dark); text-decoration: none; margin-bottom: 4px;
+  }
+  .back-link:active { opacity: 0.7; }
   .status { font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
 
   .settings-group-label {
@@ -94,8 +99,8 @@
 </head>
 <body>
 
-<h1>Stage 2 — real sign-in and file connection</h1>
-<p class="status">Pull/push (the actual settings data) are still mocked — this stage is just real Google sign-in, real file creation, and the real Picker. Stage 4 wires the actual cell reads/writes.</p>
+<a href="index.html" class="back-link">← Back</a>
+<h1>Settings</h1>
 
 <div class="settings-group-label">Settings storage</div>
 <label class="radio-label">
@@ -138,7 +143,10 @@
 
 <div class="dirty-banner" id="dirty-banner">
   <span>Unsaved changes</span>
-  <button type="button" id="save-shortcut-btn" style="flex-shrink:0; padding: 6px 12px;">Save</button>
+  <span style="display:flex; gap:8px; flex-shrink:0;">
+    <button type="button" id="revert-shortcut-btn" style="padding: 6px 12px;">Revert</button>
+    <button type="button" id="save-shortcut-btn" style="padding: 6px 12px;">Save</button>
+  </span>
 </div>
 
 <div class="settings-group-label">General settings</div>
@@ -610,6 +618,7 @@
   document.getElementById('pull-btn').addEventListener('click', doPull);
   document.getElementById('push-btn').addEventListener('click', doPush);
   document.getElementById('save-shortcut-btn').addEventListener('click', doPush);
+  document.getElementById('revert-shortcut-btn').addEventListener('click', doPull);
 
   function markDirty() {
     dirtySinceLastPush = true;
