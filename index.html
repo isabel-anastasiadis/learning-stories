@@ -84,6 +84,7 @@
   }
   .generate-btn:active { background: #445a42; }
   .generate-btn:disabled { background: #B9C4B6; cursor: not-allowed; }
+  .secondary-btn-lg { padding: 15px; font-size: 16px; border-radius: 12px; }
 
   .status { text-align: center; font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; min-height: 18px; }
 
@@ -156,7 +157,7 @@
   </div>
   <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
 
-  <button type="button" class="secondary-btn" id="reset-draft-btn-top" style="margin-bottom: var(--field-gap);">Reset</button>
+  <button type="button" class="secondary-btn secondary-btn-lg" id="reset-draft-btn-top" style="width: 100%; margin-bottom: var(--field-gap);">🔄 Reset</button>
 
   <div class="field">
     <label>Photos <span class="optional-tag">optional</span></label>
@@ -184,24 +185,24 @@
   </div>
 
   <div class="field">
-    <div class="section-heading">Notice</div>
-    <p class="section-intro">What did I observe? <span class="optional-tag">optional</span></p>
+    <div class="section-heading">Notice <span class="optional-tag">optional</span></div>
+    <p class="section-intro">What did I observe?</p>
     <textarea id="notice" placeholder="Tap here, then use your mic icon on your keyboard to talk it out"></textarea>
     <button type="button" class="secondary-btn tidy-btn" id="tidy-notice-btn" style="display: none; margin-top: 8px;">✨ Tidy up with AI</button>
     <div class="hint" id="tidy-notice-status"></div>
   </div>
 
   <div class="field">
-    <div class="section-heading">Recognise</div>
-    <p class="section-intro">What learning did I recognise? Learning outcomes? Principles? Schemas/urges? Dispositions to learning? Values? <span class="optional-tag">optional</span></p>
+    <div class="section-heading">Recognise <span class="optional-tag">optional</span></div>
+    <p class="section-intro">What learning did I recognise? Learning outcomes? Principles? Schemas/urges? Dispositions to learning? Values?</p>
     <textarea id="learning" placeholder="Tap here, then use your mic icon on your keyboard to talk it out"></textarea>
     <button type="button" class="secondary-btn tidy-btn" id="tidy-learning-btn" style="display: none; margin-top: 8px;">✨ Tidy up with AI</button>
     <div class="hint" id="tidy-learning-status"></div>
   </div>
 
   <div class="field">
-    <div class="section-heading">Respond</div>
-    <p class="section-intro">How did we support the learning in the moment? How could we support this learning going forward? <span class="optional-tag">optional</span></p>
+    <div class="section-heading">Respond <span class="optional-tag">optional</span></div>
+    <p class="section-intro">How did we support the learning in the moment? How could we support this learning going forward?</p>
     <textarea id="extend" placeholder="Tap here, then use your mic icon on your keyboard to talk it out"></textarea>
     <button type="button" class="secondary-btn tidy-btn" id="tidy-extend-btn" style="display: none; margin-top: 8px;">✨ Tidy up with AI</button>
     <div class="hint" id="tidy-extend-status"></div>
@@ -245,9 +246,9 @@
     <input type="checkbox" id="include-goal-outcomes">
     <span>Include the goal outcomes in the Recognise section</span>
   </label>
-  <button class="generate-btn" id="generate-btn">Create Word Document</button>
+  <button class="generate-btn" id="generate-btn">📄 Create Word Document</button>
   <div class="status" id="status"></div>
-  <button type="button" class="secondary-btn full-width-btn" id="reset-draft-btn-bottom" style="margin-top: 0;">Reset</button>
+  <button type="button" class="secondary-btn secondary-btn-lg full-width-btn" id="reset-draft-btn-bottom" style="margin-top: 0;">🔄 Reset</button>
 
   <div id="preview-page"></div>
 
@@ -1132,7 +1133,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
           renderPhotoGrid();
           clearDraft();
           btn.disabled = false;
-          btn.textContent = 'Create Word Document';
+          btn.textContent = '📄 Create Word Document';
           return;
         } catch (shareErr) {
           // user cancelled share sheet or it failed — fall through to download
@@ -1152,7 +1153,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       console.error(err);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create Word Document';
+      btn.textContent = '📄 Create Word Document';
     }
   });
 
