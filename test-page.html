@@ -278,6 +278,10 @@
     document.getElementById('file-pill-wrap').style.display = 'none';
     createFileBtn.disabled = false;
     chooseFileBtn.disabled = false;
+    document.getElementById('pull-status').textContent = 'Never pulled';
+    document.getElementById('push-status').textContent = 'Never pushed';
+    dirtySinceLastPush = false;
+    dirtyBanner.style.display = 'none';
     refreshLockState();
   });
 
@@ -301,7 +305,7 @@
   function markDirty() {
     if (!locShared.checked) return;
     dirtySinceLastPush = true;
-    dirtyBanner.style.display = '';
+    dirtyBanner.style.display = 'block';
   }
 
   refreshLockState();
