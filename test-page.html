@@ -3,302 +3,423 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Google Sheets Sync — Test Page v2</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://apis.google.com/js/api.js"></script>
+<title>Settings Restructure — Test Page (Stage 1)</title>
 <style>
+  :root{
+    --bg: #FBF7F0; --card: #FFFFFF; --ink: #2E2A25; --ink-soft: #6B6459;
+    --sage: #6E8A6F; --sage-dark: #52694F; --line: #E7E0D3; --radius: 14px;
+  }
+  * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    max-width: 520px; margin: 20px auto; padding: 0 16px; line-height: 1.5;
-    color: #2E2A25; background: #FBF7F0;
+    max-width: 520px; margin: 20px auto; padding: 0 16px 60px; line-height: 1.5;
+    color: var(--ink); background: var(--bg);
   }
   h1 { font-size: 20px; }
-  h2 { font-size: 15px; margin-top: 28px; border-top: 1px solid #E7E0D3; padding-top: 16px; }
-  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
-  input[type="text"] {
-    width: 100%; box-sizing: border-box; padding: 10px; font-size: 14px;
-    border: 1px solid #E7E0D3; border-radius: 8px; font-family: inherit;
+  .status { font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
+
+  .settings-group-label {
+    font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--sage-dark); margin: 26px 0 10px;
   }
+  .settings-group-label:first-of-type { margin-top: 18px; }
+  .settings-subgroup-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 4px 0 8px;
+  }
+
+  .radio-label, .toggle-label {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    font-size: 14px; padding: 8px 0;
+  }
+  .radio-label input, .toggle-label input { width: 18px; height: 18px; accent-color: var(--sage-dark); flex-shrink: 0; }
+
+  .shared-panel {
+    margin-top: 10px; padding: 14px; background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .lockable.disabled { opacity: 0.45; pointer-events: none; }
+  .lock-msg {
+    font-size: 12.5px; color: var(--ink-soft); margin: 0 0 10px;
+    background: #F1EDE3; padding: 8px 10px; border-radius: 8px;
+  }
+
+  input[type="text"], input[type="password"], textarea, select {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 14px; font-family: inherit;
+    background: var(--card); color: var(--ink);
+  }
+  textarea { min-height: 90px; resize: none; }
+  .hint { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
   button {
-    margin-top: 10px; padding: 10px 16px; font-size: 14px; font-weight: 700;
-    border: 1.5px solid #52694F; background: #fff; color: #52694F;
+    padding: 9px 14px; font-size: 13.5px; font-weight: 700;
+    border: 1.5px solid var(--sage-dark); background: var(--card); color: var(--sage-dark);
     border-radius: 8px; cursor: pointer; font-family: inherit;
   }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  button.primary { background: #52694F; color: #fff; }
-  #log {
-    margin-top: 20px; background: #fff; border: 1px solid #E7E0D3; border-radius: 8px;
-    padding: 12px; font-family: 'SF Mono', Consolas, monospace; font-size: 12px;
-    white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto;
+  button:active { background: #EEF1EA; }
+  .full-width-btn { width: 100%; }
+  .row-2 { display: flex; gap: 8px; }
+  .row-2 > * { flex: 1; }
+
+  .name-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #E9EFE6; color: var(--sage-dark);
+    font-size: 12.5px; font-weight: 700; padding: 6px 6px 6px 11px; border-radius: 16px;
+    border: none; cursor: pointer; font-family: inherit;
   }
-  .status { font-size: 13px; color: #6B6459; margin-top: 6px; }
-  .picked-file {
-    margin-top: 10px; background: #E9EFE6; border-radius: 8px; padding: 10px 12px;
-    font-size: 13px; color: #52694F; font-weight: 600;
+  .name-chip .x { font-size: 14px; line-height: 1; }
+  .name-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .name-chip-row:empty { margin-top: 0; }
+
+  .file-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #E9EFE6; color: var(--sage-dark); font-weight: 700; font-size: 13px;
+    padding: 7px 8px 7px 12px; border-radius: 16px; margin-top: 8px;
   }
+  .file-pill button { border: none; background: none; padding: 2px 4px; font-size: 14px; color: var(--sage-dark); }
+
+  .dirty-banner {
+    margin-top: 14px; font-size: 13px; color: #854F0B; background: #FAEEDA;
+    padding: 8px 12px; border-radius: 8px; display: none;
+  }
+
+  .field { margin-bottom: 16px; }
 </style>
 </head>
 <body>
 
-<h1>🧪 Google Sheets Sync — Test Page v2</h1>
-<p class="status">Now using <code>drive.file</code> scope + the Google Picker — access is limited to only the one file you explicitly select, not your whole Drive.</p>
+<h1>Stage 1 — settings restructure (mocked sync)</h1>
+<p class="status">No real Google calls in this stage — sign-in/file/pull/push are all mocked so you can test the heading hierarchy and lock/grey behaviour first. Stage 2 wires real sign-in on top of this.</p>
 
-<h2>1. Setup</h2>
-<label for="client-id">Google OAuth Client ID</label>
-<input type="text" id="client-id" placeholder="xxxxxxxxxx.apps.googleusercontent.com">
+<div class="settings-group-label">Settings storage</div>
+<label class="radio-label">
+  <input type="radio" name="storage-loc" value="local" id="loc-local" checked>
+  <span>Store in local browser cache</span>
+</label>
+<label class="radio-label">
+  <input type="radio" name="storage-loc" value="shared" id="loc-shared">
+  <span>Store in shared Google Drive file</span>
+</label>
 
-<label for="api-key">Google API Key (for the Picker)</label>
-<input type="text" id="api-key" placeholder="AIza...">
+<div class="shared-panel" id="shared-panel" style="display:none;">
+  <div class="settings-subgroup-label">Shared settings</div>
 
-<label for="project-number">Google Cloud Project Number</label>
-<input type="text" id="project-number" placeholder="e.g. 123456789012 — find on Cloud Console home page">
+  <button id="signin-btn" class="full-width-btn">Sign in with Google</button>
+  <div class="hint" id="signin-status">Not signed in</div>
 
-<button id="save-config-btn">Save these (this device only)</button>
-<div class="status" id="config-status"></div>
+  <div class="row-2" style="margin-top: 14px;">
+    <button id="create-file-btn">Create shared file</button>
+    <button id="choose-file-btn">Choose existing</button>
+  </div>
+  <div id="file-pill-wrap" style="display:none;">
+    <span class="file-pill">
+      <span id="file-pill-name">centre-settings.xlsx</span>
+      <button id="unpick-file-btn" aria-label="Disconnect file">×</button>
+    </span>
+  </div>
 
-<h2>2. Sign in</h2>
-<button id="signin-btn" class="primary" disabled>Sign in with Google</button>
-<div class="status" id="auth-status">Not signed in.</div>
+  <div class="row-2" style="margin-top: 14px;">
+    <div>
+      <button id="pull-btn" class="full-width-btn">Pull</button>
+      <div class="hint" id="pull-status">Never pulled</div>
+    </div>
+    <div>
+      <button id="push-btn" class="full-width-btn">Push</button>
+      <div class="hint" id="push-status">Never pushed</div>
+    </div>
+  </div>
+</div>
 
-<h2>2b. Test token expiry (no need to wait an hour)</h2>
-<p class="status">Real revocation via Google's own endpoint — this genuinely kills the token server-side, not just locally, so it behaves exactly like real expiry would.</p>
-<button id="revoke-btn" disabled>Force-expire current token</button>
-<button id="silent-btn" disabled>Try silent reauth now</button>
-<br>
-<button id="check-token-btn" disabled>Check token validity (direct with Google)</button>
+<div class="dirty-banner" id="dirty-banner">Not yet pushed to shared settings.</div>
 
-<h2>3. Choose your settings sheet</h2>
-<button id="choose-file-btn" disabled>Choose file</button>
-<div class="picked-file" id="picked-file" style="display: none;"></div>
+<div class="settings-group-label">General settings</div>
+<div class="lockable" id="general-settings-fields">
+  <div class="lock-msg" id="general-lock-msg" style="display:none;">Sign in and choose a file to edit these settings.</div>
 
-<h2>4. Try reading/writing cell A1</h2>
-<button id="read-btn" disabled>Read A1</button>
-<br>
-<label for="write-value">Value to write to A1</label>
-<input type="text" id="write-value" placeholder="e.g. hello from the test page">
-<button id="write-btn" disabled>Write to A1</button>
+  <div class="field">
+    <label style="font-size:12.5px; font-weight:600; text-transform:uppercase; color:var(--sage-dark); display:block; margin-bottom:6px;">Tamariki names</label>
+    <form id="saved-names-form" onsubmit="return false;" style="display: flex; gap: 8px;">
+      <input type="text" id="saved-names-input" placeholder="Add a name (or several, separated by commas)">
+      <button type="button" id="add-saved-name-btn" style="flex-shrink: 0; white-space: nowrap;">Add</button>
+    </form>
+    <div class="name-chip-row" id="saved-names-chips"></div>
+    <div class="hint">Add each child's name once here — then tap to add them to a story instead of typing.</div>
+  </div>
+</div>
 
-<h2>Log</h2>
-<div id="log">(nothing yet)</div>
+<div class="settings-group-label">AI settings</div>
+<div class="lockable" id="ai-settings-fields">
+  <div class="lock-msg" id="ai-lock-msg" style="display:none;">Sign in and choose a file to edit these settings.</div>
+
+  <label class="toggle-label">
+    <input type="checkbox" id="ai-enabled-toggle">
+    <span>Enable AI help (tidy up with AI)</span>
+  </label>
+
+  <div id="ai-sub-settings" style="margin-top: 6px;">
+    <div class="field">
+      <label style="font-size:12.5px; font-weight:600; text-transform:uppercase; color:var(--sage-dark); display:block; margin-bottom:6px;">Claude API key</label>
+      <div id="api-key-empty-state">
+        <input type="password" id="api-key-input" placeholder="e.g. sk-ant-...">
+        <button type="button" id="save-api-key-btn" class="full-width-btn" style="margin-top:8px;">Save key</button>
+      </div>
+      <div id="api-key-saved-state" style="display: none;">
+        <span id="api-key-badge" style="display:block; font-family: 'SF Mono', Consolas, monospace; font-size:14px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--card);"></span>
+        <button type="button" id="remove-api-key-btn" class="full-width-btn" style="margin-top:8px;">Remove key</button>
+      </div>
+      <div class="hint">Stored in this synced settings file, sent only to Anthropic when AI features are used.</div>
+    </div>
+
+    <div class="field">
+      <label style="font-size:12.5px; font-weight:600; text-transform:uppercase; color:var(--sage-dark); display:block; margin-bottom:6px;">Model</label>
+      <select id="model-select">
+        <option value="claude-sonnet-5">Claude Sonnet 5 (more capable)</option>
+        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (faster, cheaper)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label style="font-size:12.5px; font-weight:600; text-transform:uppercase; color:var(--sage-dark); display:block; margin-bottom:6px;">Contextual names/terms</label>
+      <input type="text" id="context-terms-input" placeholder="e.g. Playcentre, kaiako, staff names">
+      <div class="hint">Words or names specific to your centre that voice-to-text often mangles.</div>
+    </div>
+
+    <div class="field">
+      <label style="font-size:12.5px; font-weight:600; text-transform:uppercase; color:var(--sage-dark); display:block; margin-bottom:6px;">Tidy up prompt</label>
+      <textarea id="tidy-prompt-input"></textarea>
+      <div class="hint">Sent as the instruction each time "Tidy up with AI" is tapped.</div>
+    </div>
+  </div>
+</div>
 
 <script>
-  const clientIdInput = document.getElementById('client-id');
-  const apiKeyInput = document.getElementById('api-key');
-  const projectNumberInput = document.getElementById('project-number');
-  const signinBtn = document.getElementById('signin-btn');
-  const revokeBtn = document.getElementById('revoke-btn');
-  const silentBtn = document.getElementById('silent-btn');
-  const checkTokenBtn = document.getElementById('check-token-btn');
-  const chooseFileBtn = document.getElementById('choose-file-btn');
-  const pickedFileEl = document.getElementById('picked-file');
-  const readBtn = document.getElementById('read-btn');
-  const writeBtn = document.getElementById('write-btn');
-  const writeValueInput = document.getElementById('write-value');
-  const authStatus = document.getElementById('auth-status');
-  const configStatus = document.getElementById('config-status');
-  const logEl = document.getElementById('log');
+  // ---------------------------------------------------------------
+  // STAGE 1 SCOPE: heading restructure + storage-location radio +
+  // lock/grey behaviour. Sign-in/file/pull/push below are MOCKED —
+  // they just flip local flags and update status text, no network
+  // calls. Stage 2 replaces signinBtn's handler with real Google
+  // OAuth (see old test-page.html v2 for the working token-client
+  // code); stage 3 wires the real Picker; stage 4 wires real
+  // Sheets reads/writes + the revision-marker conflict check.
+  // ---------------------------------------------------------------
 
-  function log(msg) {
-    const time = new Date().toLocaleTimeString();
-    logEl.textContent = `[${time}] ${msg}\n\n` + logEl.textContent;
-  }
+  const locLocal = document.getElementById('loc-local');
+  const locShared = document.getElementById('loc-shared');
+  const sharedPanel = document.getElementById('shared-panel');
+  const generalFields = document.getElementById('general-settings-fields');
+  const aiFields = document.getElementById('ai-settings-fields');
+  const generalLockMsg = document.getElementById('general-lock-msg');
+  const aiLockMsg = document.getElementById('ai-lock-msg');
+  const dirtyBanner = document.getElementById('dirty-banner');
 
-  clientIdInput.value = localStorage.getItem('test_client_id') || '';
-  apiKeyInput.value = localStorage.getItem('test_api_key') || '';
-  projectNumberInput.value = localStorage.getItem('test_project_number') || '';
-  if (clientIdInput.value) signinBtn.disabled = false;
+  let mockSignedIn = false;
+  let mockFileConnected = false;
+  let dirtySinceLastPush = false;
 
-  document.getElementById('save-config-btn').addEventListener('click', () => {
-    localStorage.setItem('test_client_id', clientIdInput.value.trim());
-    localStorage.setItem('test_api_key', apiKeyInput.value.trim());
-    localStorage.setItem('test_project_number', projectNumberInput.value.trim());
-    configStatus.textContent = 'Saved. You can now try signing in.';
-    signinBtn.disabled = !clientIdInput.value.trim();
-    log('Config saved.');
-  });
+  function refreshLockState() {
+    const shared = locShared.checked;
+    sharedPanel.style.display = shared ? '' : 'none';
+    const unlocked = !shared || (mockSignedIn && mockFileConnected);
 
-  let accessToken = null;
-  let tokenClient = null;
-  let pickerLoaded = false;
-  let selectedSheetId = null;
-
-  window.addEventListener('load', () => {
-    if (window.gapi) {
-      gapi.load('picker', () => {
-        pickerLoaded = true;
-        log('Picker library loaded.');
-      });
-    }
-  });
-
-  function ensureTokenClient() {
-    if (tokenClient) return tokenClient;
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientIdInput.value.trim(),
-      scope: 'https://www.googleapis.com/auth/drive.file',
-      callback: (resp) => {
-        if (resp.error) {
-          log('Sign-in error: ' + JSON.stringify(resp));
-          authStatus.textContent = 'Sign-in failed — see log.';
-          return;
-        }
-        accessToken = resp.access_token;
-        const expiresInMin = Math.round(resp.expires_in / 60);
-        authStatus.textContent = `Signed in. Token expires in ~${expiresInMin} min.`;
-        log(`Got access token. Expires in ${resp.expires_in}s (~${expiresInMin} min).`);
-        chooseFileBtn.disabled = false;
-        revokeBtn.disabled = false;
-        silentBtn.disabled = false;
-        checkTokenBtn.disabled = false;
-      }
+    [ [generalFields, generalLockMsg], [aiFields, aiLockMsg] ].forEach(([fieldsEl, msgEl]) => {
+      fieldsEl.classList.toggle('disabled', !unlocked);
+      msgEl.style.display = (shared && !unlocked) ? '' : 'none';
     });
-    return tokenClient;
+
+    if (!shared) dirtyBanner.style.display = 'none';
   }
+  [locLocal, locShared].forEach(r => r.addEventListener('change', refreshLockState));
 
-  // Real revocation via Google's own endpoint — genuinely kills the token
-  // server-side. Doesn't support CORS, so this has to be a real form POST.
-  // A hidden <iframe> doesn't work here — Google's account-related endpoints
-  // refuse to be displayed in a frame at all (anti-clickjacking protection),
-  // so that submission was likely silently blocked before it ever reached
-  // Google. Using a real (tiny, auto-closing) tab instead avoids that.
-  function revokeToken(token) {
-    return new Promise((resolve) => {
-      const winName = 'revoke-target-' + Date.now();
-      const win = window.open('', winName);
+  document.getElementById('signin-btn').addEventListener('click', () => {
+    // STAGE 2: replace with google.accounts.oauth2.initTokenClient(...).requestAccessToken()
+    mockSignedIn = true;
+    document.getElementById('signin-status').textContent = 'Signed in just now (mocked)';
+    refreshLockState();
+  });
 
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = 'https://oauth2.googleapis.com/revoke';
-      form.target = winName;
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'token';
-      input.value = token;
-      form.appendChild(input);
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
-
-      setTimeout(() => {
-        if (win && !win.closed) win.close();
-        resolve();
-      }, 1200);
-    });
+  function mockConnectFile(name) {
+    // STAGE 3: replace with the real Picker flow
+    mockFileConnected = true;
+    document.getElementById('file-pill-wrap').style.display = '';
+    document.getElementById('file-pill-name').textContent = name;
+    refreshLockState();
   }
-
-  revokeBtn.addEventListener('click', async () => {
-    if (!accessToken) return;
-    log('Revoking current token via Google\'s revoke endpoint (a tab will briefly flash open then close — that\'s expected)...');
-    await revokeToken(accessToken);
-    log('Revoke request sent. This token should now be genuinely dead server-side — same as real expiry. Try "Read A1" to confirm it now actually fails, then try "Try silent reauth now" to get a fresh one.');
-    authStatus.textContent = 'Token forcibly revoked (simulating expiry).';
+  document.getElementById('create-file-btn').addEventListener('click', () => mockConnectFile('centre-settings.xlsx (new, mocked)'));
+  document.getElementById('choose-file-btn').addEventListener('click', () => mockConnectFile('playcentre-shared.xlsx (mocked)'));
+  document.getElementById('unpick-file-btn').addEventListener('click', () => {
+    mockFileConnected = false;
+    document.getElementById('file-pill-wrap').style.display = 'none';
+    refreshLockState();
   });
 
-  silentBtn.addEventListener('click', () => {
-    log('Attempting SILENT reauth (prompt: "") — watch for whether this succeeds invisibly, fails silently, or unexpectedly shows a popup...');
-    ensureTokenClient().requestAccessToken({ prompt: '' });
-  });
-
-  // Asks Google directly whether this token is still valid — this endpoint
-  // (unlike revoke) supports normal fetch/CORS, so it gives a definitive,
-  // unambiguous answer, cutting out any question of Sheets-API-specific
-  // caching or behavior being the confusing factor.
-  checkTokenBtn.addEventListener('click', async () => {
-    log('Checking token validity directly with Google (tokeninfo endpoint)...');
-    try {
-      const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
-      const data = await res.json();
-      if (res.ok) {
-        log('Google says this token is still VALID: ' + JSON.stringify(data, null, 2));
-      } else {
-        log('Google says this token is INVALID/expired: ' + JSON.stringify(data, null, 2));
-      }
-    } catch (err) {
-      log('Error checking token: ' + err.message);
-    }
-  });
-
-  signinBtn.addEventListener('click', () => {
-    if (!clientIdInput.value.trim()) {
-      alert('Paste in your Client ID and hit "Save these" first.');
+  document.getElementById('pull-btn').addEventListener('click', () => {
+    // STAGE 4: real pull — check dirtySinceLastPush first and warn before overwriting local
+    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
       return;
     }
-    log('Requesting access token (this should prompt a Google sign-in)...');
-    ensureTokenClient().requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+    document.getElementById('pull-status').textContent = 'Last pulled: just now (mocked)';
+    dirtySinceLastPush = false;
+    dirtyBanner.style.display = 'none';
   });
 
-  chooseFileBtn.addEventListener('click', () => {
-    if (!pickerLoaded) { alert('Picker library still loading — try again in a second.'); return; }
-    if (!apiKeyInput.value.trim()) { alert('Paste in your API Key and hit "Save these" first.'); return; }
-    if (!projectNumberInput.value.trim()) { alert('Paste in your Google Cloud Project Number and hit "Save these" first — required for drive.file access to actually work.'); return; }
-
-    const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-      .setMimeTypes('application/vnd.google-apps.spreadsheet');
-
-    const picker = new google.picker.PickerBuilder()
-      .addView(view)
-      .setOAuthToken(accessToken)
-      .setDeveloperKey(apiKeyInput.value.trim())
-      .setAppId(projectNumberInput.value.trim())
-      .setCallback((data) => {
-        if (data.action === google.picker.Action.PICKED) {
-          const file = data.docs[0];
-          selectedSheetId = file.id;
-          pickedFileEl.style.display = '';
-          pickedFileEl.textContent = `Selected: ${file.name}`;
-          log(`Picked file: ${file.name} (${file.id})`);
-          readBtn.disabled = false;
-          writeBtn.disabled = false;
-        } else if (data.action === google.picker.Action.CANCEL) {
-          log('Picker closed without selecting a file.');
-        }
-      })
-      .build();
-    picker.setVisible(true);
+  document.getElementById('push-btn').addEventListener('click', () => {
+    // STAGE 4: real push — check the shared revision marker first and warn if it moved
+    document.getElementById('push-status').textContent = 'Last pushed: just now (mocked)';
+    dirtySinceLastPush = false;
+    dirtyBanner.style.display = 'none';
   });
 
-  async function sheetsFetch(method, extraPath, body) {
-    if (!selectedSheetId) { alert('Choose a file first.'); return null; }
-    if (!accessToken) { alert('Sign in first.'); return null; }
-
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${selectedSheetId}/values/${extraPath}`;
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: body ? JSON.stringify(body) : undefined
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      log(`ERROR (${res.status}): ` + JSON.stringify(data, null, 2));
-      if (res.status === 401) {
-        log('Token likely expired — try Sign in again to get a fresh one.');
-      }
-      if (res.status === 403) {
-        log('Permission denied — this can happen if drive.file access to this specific file was not properly granted. Try choosing the file again.');
-      }
-      return null;
-    }
-    return data;
+  function markDirty() {
+    if (!locShared.checked) return;
+    dirtySinceLastPush = true;
+    dirtyBanner.style.display = '';
   }
 
-  readBtn.addEventListener('click', async () => {
-    log('Reading A1...');
-    const data = await sheetsFetch('GET', 'A1');
-    if (data) log('Read result: ' + JSON.stringify(data));
+  refreshLockState();
+
+  // ---------------------------------------------------------------
+  // Below: tamariki names + AI settings logic, carried over as-is
+  // from index.html (same localStorage keys), just wired to also
+  // call markDirty() on every change, and nested under the new
+  // General settings / AI settings headings.
+  // ---------------------------------------------------------------
+
+  function safeGet(key, fallback) {
+    try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+  }
+  function safeSet(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* ignore */ }
+  }
+
+  // --- Tamariki names ---
+  const SAVED_NAMES_KEY = 'korero_saved_names';
+  function sortNames() { savedNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); }
+  let savedNames = [];
+  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')); } catch (e) { savedNames = []; }
+  sortNames();
+
+  const savedNamesInput = document.getElementById('saved-names-input');
+  const addSavedNameBtn = document.getElementById('add-saved-name-btn');
+  const savedNamesChipsEl = document.getElementById('saved-names-chips');
+
+  function persistSavedNames() {
+    try { localStorage.setItem(SAVED_NAMES_KEY, JSON.stringify(savedNames)); } catch (e) { /* ignore */ }
+    markDirty();
+  }
+
+  function capitalizeName(str) {
+    return str.trim().split(/\s+/).map(word =>
+      word.split('-').map(part =>
+        part.length ? part.charAt(0).toUpperCase() + part.slice(1) : part
+      ).join('-')
+    ).join(' ');
+  }
+
+  function renderSavedNamesSettings() {
+    savedNamesChipsEl.innerHTML = '';
+    savedNames.forEach(name => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'name-chip';
+      chip.innerHTML = `<span>${name}</span><span class="x">×</span>`;
+      chip.addEventListener('click', () => {
+        savedNames = savedNames.filter(n => n !== name);
+        persistSavedNames();
+        renderSavedNamesSettings();
+      });
+      savedNamesChipsEl.appendChild(chip);
+    });
+  }
+  renderSavedNamesSettings();
+
+  function addSavedNamesFromInput() {
+    const raw = savedNamesInput.value;
+    const names = raw.split(',').map(s => capitalizeName(s)).filter(Boolean);
+    if (!names.length) return;
+    let changed = false;
+    names.forEach(name => {
+      if (!savedNames.includes(name)) { savedNames.push(name); changed = true; }
+    });
+    if (changed) {
+      sortNames();
+      persistSavedNames();
+      renderSavedNamesSettings();
+    }
+    savedNamesInput.value = '';
+  }
+  addSavedNameBtn.addEventListener('click', addSavedNamesFromInput);
+  document.getElementById('saved-names-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    addSavedNamesFromInput();
   });
 
-  writeBtn.addEventListener('click', async () => {
-    const val = writeValueInput.value;
-    log(`Writing "${val}" to A1...`);
-    const data = await sheetsFetch(
-      'PUT',
-      'A1?valueInputOption=RAW',
-      { values: [[val]] }
-    );
-    if (data) log('Write result: ' + JSON.stringify(data));
+  // --- AI settings ---
+  const AI_ENABLED_KEY = 'korero_ai_enabled';
+  const AI_MODEL_KEY = 'korero_ai_model';
+  const AI_PROMPT_KEY = 'korero_ai_tidy_prompt';
+  const AI_CONTEXT_TERMS_KEY = 'korero_ai_context_terms';
+  const API_KEY_STORAGE_KEY = 'korero_claude_api_key';
+  const DEFAULT_TIDY_PROMPT = `The following text was captured using voice-to-text while an early childhood educator was talking through what they observed. Please lightly tidy it up:
+- Break it into natural, standard-length sentences with correct capitalisation and punctuation.
+- Remove verbal filler and thinking-out-loud disfluencies.
+- Fix words that were clearly mangled by voice-to-text, using context to guess the intended word.
+- Beyond removing filler and fixing mangled words/sentence breaks, do NOT rephrase, summarise, shorten, or otherwise change the wording, tone, or meaning.
+- Do not add any information that wasn't there.
+Return ONLY the corrected text, with no preamble, explanation, or quotation marks around it.`;
+
+  const aiEnabledToggle = document.getElementById('ai-enabled-toggle');
+  const modelSelect = document.getElementById('model-select');
+  const tidyPromptInput = document.getElementById('tidy-prompt-input');
+  const contextTermsInput = document.getElementById('context-terms-input');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyEmptyState = document.getElementById('api-key-empty-state');
+  const apiKeySavedState = document.getElementById('api-key-saved-state');
+  const apiKeyBadge = document.getElementById('api-key-badge');
+
+  aiEnabledToggle.checked = safeGet(AI_ENABLED_KEY, 'false') === 'true';
+  modelSelect.value = safeGet(AI_MODEL_KEY, 'claude-sonnet-5');
+  tidyPromptInput.value = safeGet(AI_PROMPT_KEY, DEFAULT_TIDY_PROMPT);
+  contextTermsInput.value = safeGet(AI_CONTEXT_TERMS_KEY, '');
+
+  aiEnabledToggle.addEventListener('change', () => { safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false'); markDirty(); });
+  modelSelect.addEventListener('change', () => { safeSet(AI_MODEL_KEY, modelSelect.value); markDirty(); });
+  tidyPromptInput.addEventListener('input', () => { safeSet(AI_PROMPT_KEY, tidyPromptInput.value); markDirty(); });
+  contextTermsInput.addEventListener('input', () => { safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value); markDirty(); });
+
+  function maskApiKey(key) {
+    if (key.length <= 10) return key[0] + '…' + key.slice(-2);
+    return key.slice(0, 7) + '…' + key.slice(-4);
+  }
+  function getSavedApiKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function renderApiKeyStatus() {
+    const saved = getSavedApiKey();
+    if (saved) {
+      apiKeyBadge.textContent = maskApiKey(saved);
+      apiKeyEmptyState.style.display = 'none';
+      apiKeySavedState.style.display = 'block';
+    } else {
+      apiKeyEmptyState.style.display = '';
+      apiKeySavedState.style.display = 'none';
+    }
+  }
+  renderApiKeyStatus();
+
+  document.getElementById('save-api-key-btn').addEventListener('click', () => {
+    const val = apiKeyInput.value.trim();
+    if (!val) return;
+    try { localStorage.setItem(API_KEY_STORAGE_KEY, val); } catch (e) { alert("Couldn't save — browser storage isn't available here."); return; }
+    apiKeyInput.value = '';
+    renderApiKeyStatus();
+    markDirty();
+  });
+  document.getElementById('remove-api-key-btn').addEventListener('click', () => {
+    try { localStorage.removeItem(API_KEY_STORAGE_KEY); } catch (e) { /* ignore */ }
+    apiKeyInput.value = '';
+    renderApiKeyStatus();
+    markDirty();
   });
 </script>
 
