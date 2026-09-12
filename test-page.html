@@ -39,6 +39,8 @@
     border: 1px solid var(--line); border-radius: var(--radius);
   }
   .lockable.disabled { opacity: 0.45; pointer-events: none; }
+  #ai-sub-settings.disabled { opacity: 0.45; pointer-events: none; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
   .lock-msg {
     font-size: 12.5px; color: var(--ink-soft); margin: 0 0 10px;
     background: #F1EDE3; padding: 8px 10px; border-radius: 8px;
@@ -238,18 +240,44 @@
     refreshLockState();
   });
 
+  const createFileBtn = document.getElementById('create-file-btn');
+  const chooseFileBtn = document.getElementById('choose-file-btn');
+
   function mockConnectFile(name) {
-    // STAGE 3: replace with the real Picker flow
     mockFileConnected = true;
     document.getElementById('file-pill-wrap').style.display = '';
     document.getElementById('file-pill-name').textContent = name;
+    createFileBtn.disabled = true;
+    chooseFileBtn.disabled = true;
     refreshLockState();
   }
-  document.getElementById('create-file-btn').addEventListener('click', () => mockConnectFile('centre-settings.xlsx (new, mocked)'));
-  document.getElementById('choose-file-btn').addEventListener('click', () => mockConnectFile('playcentre-shared.xlsx (mocked)'));
+
+  createFileBtn.addEventListener('click', () => {
+    // STAGE 3/4: real "create" flow — make the sheet via the Picker/Drive API,
+    // then push current local settings as its initial content (nothing to pull yet)
+    mockConnectFile('centre-settings.xlsx (new, mocked)');
+    document.getElementById('push-status').textContent = 'Last pushed: just now (mocked — initial push on create)';
+    dirtySinceLastPush = false;
+    dirtyBanner.style.display = 'none';
+  });
+
+  chooseFileBtn.addEventListener('click', () => {
+    // STAGE 3/4: real "choose existing" flow — pick via the Picker, then pull
+    // its contents immediately so you're looking at the shared settings, not stale local ones
+    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Choosing an existing file will pull its settings and overwrite them — continue?')) {
+      return;
+    }
+    mockConnectFile('playcentre-shared.xlsx (mocked)');
+    document.getElementById('pull-status').textContent = 'Last pulled: just now (mocked — pulled on choose)';
+    dirtySinceLastPush = false;
+    dirtyBanner.style.display = 'none';
+  });
+
   document.getElementById('unpick-file-btn').addEventListener('click', () => {
     mockFileConnected = false;
     document.getElementById('file-pill-wrap').style.display = 'none';
+    createFileBtn.disabled = false;
+    chooseFileBtn.disabled = false;
     refreshLockState();
   });
 
@@ -377,12 +405,23 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   const apiKeySavedState = document.getElementById('api-key-saved-state');
   const apiKeyBadge = document.getElementById('api-key-badge');
 
+  const aiSubSettings = document.getElementById('ai-sub-settings');
+
   aiEnabledToggle.checked = safeGet(AI_ENABLED_KEY, 'false') === 'true';
   modelSelect.value = safeGet(AI_MODEL_KEY, 'claude-sonnet-5');
   tidyPromptInput.value = safeGet(AI_PROMPT_KEY, DEFAULT_TIDY_PROMPT);
   contextTermsInput.value = safeGet(AI_CONTEXT_TERMS_KEY, '');
 
-  aiEnabledToggle.addEventListener('change', () => { safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false'); markDirty(); });
+  function updateAiSubSettingsVisibility() {
+    aiSubSettings.classList.toggle('disabled', !aiEnabledToggle.checked);
+  }
+  updateAiSubSettingsVisibility();
+
+  aiEnabledToggle.addEventListener('change', () => {
+    safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false');
+    updateAiSubSettingsVisibility();
+    markDirty();
+  });
   modelSelect.addEventListener('change', () => { safeSet(AI_MODEL_KEY, modelSelect.value); markDirty(); });
   tidyPromptInput.addEventListener('input', () => { safeSet(AI_PROMPT_KEY, tidyPromptInput.value); markDirty(); });
   contextTermsInput.addEventListener('input', () => { safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value); markDirty(); });
