@@ -133,7 +133,10 @@
   </div>
 </div>
 
-<div class="dirty-banner" id="dirty-banner">Not yet pushed to shared settings.</div>
+<div class="dirty-banner" id="dirty-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+  <span>Unsaved changes</span>
+  <button type="button" id="save-shortcut-btn" style="flex-shrink:0; padding: 6px 12px;">Save</button>
+</div>
 
 <div class="settings-group-label">General settings</div>
 <div class="lockable" id="general-settings-fields">
@@ -214,6 +217,29 @@
   const generalLockMsg = document.getElementById('general-lock-msg');
   const aiLockMsg = document.getElementById('ai-lock-msg');
   const dirtyBanner = document.getElementById('dirty-banner');
+  const pullStatusEl = document.getElementById('pull-status');
+  const pushStatusEl = document.getElementById('push-status');
+  const signinStatusEl = document.getElementById('signin-status');
+  const filePillWrap = document.getElementById('file-pill-wrap');
+  const filePillNameEl = document.getElementById('file-pill-name');
+  const createFileBtn = document.getElementById('create-file-btn');
+  const chooseFileBtn = document.getElementById('choose-file-btn');
+
+  // These are genuine settings (which file, when last synced), not session
+  // state, so they persist across a refresh the same way everything else in
+  // Settings does. STAGE 2: mockSignedIn becomes a real "is my token still
+  // valid" check on load instead of a stored boolean — you can't durably
+  // "stay signed in" the way a file connection persists.
+  const SYNC_STATE_KEY = 'korero_test_sync_state';
+  function persistSyncState() {
+    safeSet(SYNC_STATE_KEY, JSON.stringify({
+      storageLocation: locShared.checked ? 'shared' : 'local',
+      signedIn: mockSignedIn,
+      fileName: mockFileConnected ? filePillNameEl.textContent : '',
+      lastPulled: pullStatusEl.textContent,
+      lastPushed: pushStatusEl.textContent
+    }));
+  }
 
   let mockSignedIn = false;
   let mockFileConnected = false;
@@ -231,34 +257,54 @@
 
     if (!shared) dirtyBanner.style.display = 'none';
   }
-  [locLocal, locShared].forEach(r => r.addEventListener('change', refreshLockState));
+  [locLocal, locShared].forEach(r => r.addEventListener('change', () => { refreshLockState(); persistSyncState(); }));
 
   document.getElementById('signin-btn').addEventListener('click', () => {
     // STAGE 2: replace with google.accounts.oauth2.initTokenClient(...).requestAccessToken()
     mockSignedIn = true;
-    document.getElementById('signin-status').textContent = 'Signed in just now (mocked)';
+    signinStatusEl.textContent = 'Signed in just now (mocked)';
     refreshLockState();
+    persistSyncState();
   });
-
-  const createFileBtn = document.getElementById('create-file-btn');
-  const chooseFileBtn = document.getElementById('choose-file-btn');
 
   function mockConnectFile(name) {
     mockFileConnected = true;
-    document.getElementById('file-pill-wrap').style.display = '';
-    document.getElementById('file-pill-name').textContent = name;
+    filePillWrap.style.display = '';
+    filePillNameEl.textContent = name;
     createFileBtn.disabled = true;
     chooseFileBtn.disabled = true;
     refreshLockState();
+  }
+
+  function clearDirty() {
+    dirtySinceLastPush = false;
+    dirtyBanner.style.display = 'none';
+  }
+
+  function doPush() {
+    // STAGE 4: real push — check the shared revision marker first and warn if it moved
+    pushStatusEl.textContent = 'Last pushed: just now (mocked)';
+    clearDirty();
+    persistSyncState();
+  }
+
+  function doPull() {
+    // STAGE 4: real pull — check dirtySinceLastPush first and warn before overwriting local
+    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
+      return;
+    }
+    pullStatusEl.textContent = 'Last pulled: just now (mocked)';
+    clearDirty();
+    persistSyncState();
   }
 
   createFileBtn.addEventListener('click', () => {
     // STAGE 3/4: real "create" flow — make the sheet via the Picker/Drive API,
     // then push current local settings as its initial content (nothing to pull yet)
     mockConnectFile('centre-settings.xlsx (new, mocked)');
-    document.getElementById('push-status').textContent = 'Last pushed: just now (mocked — initial push on create)';
-    dirtySinceLastPush = false;
-    dirtyBanner.style.display = 'none';
+    pushStatusEl.textContent = 'Last pushed: just now (mocked — initial push on create)';
+    clearDirty();
+    persistSyncState();
   });
 
   chooseFileBtn.addEventListener('click', () => {
@@ -268,45 +314,53 @@
       return;
     }
     mockConnectFile('playcentre-shared.xlsx (mocked)');
-    document.getElementById('pull-status').textContent = 'Last pulled: just now (mocked — pulled on choose)';
-    dirtySinceLastPush = false;
-    dirtyBanner.style.display = 'none';
+    pullStatusEl.textContent = 'Last pulled: just now (mocked — pulled on choose)';
+    clearDirty();
+    persistSyncState();
   });
 
   document.getElementById('unpick-file-btn').addEventListener('click', () => {
     mockFileConnected = false;
-    document.getElementById('file-pill-wrap').style.display = 'none';
+    filePillWrap.style.display = 'none';
     createFileBtn.disabled = false;
     chooseFileBtn.disabled = false;
-    document.getElementById('pull-status').textContent = 'Never pulled';
-    document.getElementById('push-status').textContent = 'Never pushed';
-    dirtySinceLastPush = false;
-    dirtyBanner.style.display = 'none';
+    pullStatusEl.textContent = 'Never pulled';
+    pushStatusEl.textContent = 'Never pushed';
+    clearDirty();
     refreshLockState();
+    persistSyncState();
   });
 
-  document.getElementById('pull-btn').addEventListener('click', () => {
-    // STAGE 4: real pull — check dirtySinceLastPush first and warn before overwriting local
-    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
-      return;
-    }
-    document.getElementById('pull-status').textContent = 'Last pulled: just now (mocked)';
-    dirtySinceLastPush = false;
-    dirtyBanner.style.display = 'none';
-  });
-
-  document.getElementById('push-btn').addEventListener('click', () => {
-    // STAGE 4: real push — check the shared revision marker first and warn if it moved
-    document.getElementById('push-status').textContent = 'Last pushed: just now (mocked)';
-    dirtySinceLastPush = false;
-    dirtyBanner.style.display = 'none';
-  });
+  document.getElementById('pull-btn').addEventListener('click', doPull);
+  document.getElementById('push-btn').addEventListener('click', doPush);
+  document.getElementById('save-shortcut-btn').addEventListener('click', doPush);
 
   function markDirty() {
     if (!locShared.checked) return;
     dirtySinceLastPush = true;
-    dirtyBanner.style.display = 'block';
+    dirtyBanner.style.display = 'flex';
   }
+
+  (function restoreSyncState() {
+    let saved = null;
+    try { saved = JSON.parse(safeGet(SYNC_STATE_KEY, 'null')); } catch (e) { saved = null; }
+    if (saved) {
+      if (saved.storageLocation === 'shared') locShared.checked = true; else locLocal.checked = true;
+      // STAGE 2: mockSignedIn shouldn't just be trusted from storage — check
+      // the token's actually still valid (silent reauth) before unlocking
+      mockSignedIn = !!saved.signedIn;
+      if (saved.signedIn) signinStatusEl.textContent = 'Signed in (restored)';
+      if (saved.fileName) {
+        mockFileConnected = true;
+        filePillWrap.style.display = '';
+        filePillNameEl.textContent = saved.fileName;
+        createFileBtn.disabled = true;
+        chooseFileBtn.disabled = true;
+      }
+      if (saved.lastPulled) pullStatusEl.textContent = saved.lastPulled;
+      if (saved.lastPushed) pushStatusEl.textContent = saved.lastPushed;
+    }
+  })();
 
   refreshLockState();
 
