@@ -84,7 +84,10 @@
   }
   .generate-btn:active { background: #445a42; }
   .generate-btn:disabled { background: #B9C4B6; cursor: not-allowed; }
-  .secondary-btn-lg { padding: 15px; font-size: 16px; border-radius: 12px; }
+  .secondary-btn-lg {
+    padding: 13.5px 15px; font-size: 16px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
 
   .status { text-align: center; font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; min-height: 18px; }
 
@@ -157,7 +160,7 @@
   </div>
   <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
 
-  <button type="button" class="secondary-btn secondary-btn-lg" id="reset-draft-btn-top" style="width: 100%; margin-bottom: var(--field-gap);">🔄 Reset</button>
+  <button type="button" class="secondary-btn secondary-btn-lg" id="reset-draft-btn-top" style="margin-bottom: var(--field-gap);">🔄 Reset</button>
 
   <div class="field">
     <label>Photos <span class="optional-tag">optional</span></label>
