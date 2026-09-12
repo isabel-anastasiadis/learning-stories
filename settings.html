@@ -449,11 +449,7 @@
     }
   }
 
-  async function doPull() {
-    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
-    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
-      return;
-    }
+  async function pullAndReport() {
     const prevText = pullStatusEl.textContent;
     pullStatusEl.textContent = 'Pulling…';
     try {
@@ -465,6 +461,23 @@
       pullStatusEl.textContent = prevText;
       alert("Couldn't pull: " + err.message);
     }
+  }
+
+  async function doPull() {
+    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
+    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
+      return;
+    }
+    await pullAndReport();
+  }
+
+  // Revert (the banner's shortcut) skips the confirm entirely — unlike the
+  // standalone Pull button, Revert is only ever shown BECAUSE there are
+  // unsaved changes, so clicking it already IS the "yes, discard them"
+  // decision. Asking again would just be re-confirming what was just asked.
+  async function doRevert() {
+    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
+    await pullAndReport();
   }
 
   async function createSheetInFolder(folderId) {
@@ -578,7 +591,7 @@
   document.getElementById('pull-btn').addEventListener('click', doPull);
   document.getElementById('push-btn').addEventListener('click', doPush);
   document.getElementById('save-shortcut-btn').addEventListener('click', doPush);
-  document.getElementById('revert-shortcut-btn').addEventListener('click', doPull);
+  document.getElementById('revert-shortcut-btn').addEventListener('click', doRevert);
 
   function markDirty() {
     dirtySinceLastPush = true;
