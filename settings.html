@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — Kōrero</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://accounts.google.com/gsi/client"></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<style>
+  .settings-group-label {
+    font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--sage-dark); margin: 26px 0 10px;
+  }
+  .settings-group-label:first-of-type { margin-top: 18px; }
+  .settings-subgroup-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 4px 0 8px;
+  }
+
+  .radio-label, .toggle-label {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink);
+    font-size: 14px; padding: 8px 0;
+  }
+  .radio-label input, .toggle-label input { width: 18px; height: 18px; accent-color: var(--sage-dark); flex-shrink: 0; }
+
+  .shared-panel {
+    margin-top: 10px; padding: 14px; background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .lockable.disabled { opacity: 0.45; pointer-events: none; }
+  #ai-sub-settings.disabled { opacity: 0.45; pointer-events: none; }
+  .lock-msg {
+    font-size: 12.5px; color: var(--ink-soft); margin: 0 0 10px;
+    background: #F1EDE3; padding: 8px 10px; border-radius: 8px;
+  }
+
+  textarea { min-height: 90px; resize: none; }
+
+  .row-2 { display: flex; gap: 8px; }
+  .row-2 > * { flex: 1; }
+
+  .file-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #E9EFE6; color: var(--sage-dark); font-weight: 700; font-size: 13px;
+    padding: 7px 8px 7px 12px; border-radius: 16px; margin-top: 8px;
+  }
+  .file-pill button { border: none; background: none; padding: 2px 4px; font-size: 14px; color: var(--sage-dark); }
+  .file-pill button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .dirty-banner {
+    margin-top: 14px; font-size: 13px; color: #854F0B; background: #FAEEDA;
+    padding: 8px 12px; border-radius: 8px; display: none;
+    align-items: center; justify-content: space-between; gap: 10px;
+  }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="back-link">← Back</a>
+<h1>Settings</h1>
+
+<div class="settings-group-label">Settings storage</div>
+<label class="radio-label">
+  <input type="radio" name="storage-loc" value="local" id="loc-local" checked>
+  <span>Store in local browser cache</span>
+</label>
+<label class="radio-label">
+  <input type="radio" name="storage-loc" value="shared" id="loc-shared">
+  <span>Store in shared Google Drive file</span>
+</label>
+
+<div class="shared-panel" id="shared-panel" style="display:none;">
+  <div class="settings-subgroup-label">Shared settings</div>
+
+  <button id="signin-btn" class="secondary-btn full-width-btn">Sign in with Google</button>
+  <div class="hint" id="signin-status">Not signed in</div>
+
+  <div class="row-2" style="margin-top: 14px;">
+    <button id="create-file-btn" class="secondary-btn">Create shared file</button>
+    <button id="choose-file-btn" class="secondary-btn">Choose existing</button>
+  </div>
+  <div id="file-pill-wrap" style="display:none;">
+    <span class="file-pill">
+      <span id="file-pill-name">centre-settings.xlsx</span>
+      <button id="unpick-file-btn" aria-label="Disconnect file">×</button>
+    </span>
+  </div>
+
+  <div class="lockable row-2" id="pull-push-row" style="margin-top: 14px;">
+    <div>
+      <button id="pull-btn" class="secondary-btn full-width-btn">Pull</button>
+      <div class="hint" id="pull-status">Never pulled</div>
+    </div>
+    <div>
+      <button id="push-btn" class="secondary-btn full-width-btn">Push</button>
+      <div class="hint" id="push-status">Never pushed</div>
+    </div>
+  </div>
+</div>
+
+<div class="dirty-banner" id="dirty-banner">
+  <span>Unsaved changes</span>
+  <span style="display:flex; gap:8px; flex-shrink:0;">
+    <button type="button" id="revert-shortcut-btn" class="secondary-btn" style="padding: 6px 12px;">Revert</button>
+    <button type="button" id="save-shortcut-btn" class="secondary-btn" style="padding: 6px 12px;">Save</button>
+  </span>
+</div>
+
+<div class="settings-group-label">General settings</div>
+<div class="lockable" id="general-settings-fields">
+  <div class="lock-msg" id="general-lock-msg" style="display:none;">Sign in and choose a file to edit these settings.</div>
+
+  <div class="field">
+    <label for="saved-names-input">Tamariki names</label>
+    <form id="saved-names-form" onsubmit="return false;" style="display: flex; gap: 8px;">
+      <input type="text" id="saved-names-input" placeholder="Add a name (or several, separated by commas)">
+      <button type="button" id="add-saved-name-btn" class="secondary-btn" style="flex-shrink: 0; white-space: nowrap;">Add</button>
+    </form>
+    <div class="name-chip-row" id="saved-names-chips"></div>
+    <div class="hint">Add each child's name once here — then tap to add them to a story instead of typing.</div>
+  </div>
+</div>
+
+<div class="settings-group-label">AI settings</div>
+<div class="lockable" id="ai-settings-fields">
+  <div class="lock-msg" id="ai-lock-msg" style="display:none;">Sign in and choose a file to edit these settings.</div>
+
+  <label class="toggle-label">
+    <input type="checkbox" id="ai-enabled-toggle">
+    <span>Enable AI help (tidy up with AI)</span>
+  </label>
+
+  <div id="ai-sub-settings" style="margin-top: 6px;">
+    <div class="field">
+      <label for="api-key-input">Claude API key</label>
+      <div id="api-key-empty-state">
+        <input type="password" id="api-key-input" placeholder="e.g. sk-ant-...">
+        <button type="button" id="save-api-key-btn" class="secondary-btn full-width-btn">Save key</button>
+      </div>
+      <div id="api-key-saved-state" style="display: none;">
+        <span id="api-key-badge" style="display:block; font-family: 'SF Mono', Consolas, monospace; font-size:14px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--card);"></span>
+        <button type="button" id="remove-api-key-btn" class="secondary-btn full-width-btn">Remove key</button>
+      </div>
+      <div class="hint">Stored in this synced settings file, sent only to Anthropic when AI features are used.</div>
+    </div>
+
+    <div class="field">
+      <label for="model-select">Model</label>
+      <select id="model-select">
+        <option value="claude-sonnet-5">Claude Sonnet 5 (more capable)</option>
+        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (faster, cheaper)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="context-terms-input">Contextual names/terms</label>
+      <input type="text" id="context-terms-input" placeholder="e.g. Playcentre, kaiako, staff names">
+      <div class="hint">Words or names specific to your centre that voice-to-text often mangles.</div>
+    </div>
+
+    <div class="field">
+      <label for="tidy-prompt-input">Tidy up prompt</label>
+      <textarea id="tidy-prompt-input"></textarea>
+      <div class="hint">Sent as the instruction each time "Tidy up with AI" is tapped.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------------------------------------------------------------
+  // Real Google sign-in (drive.file scope), real file creation/picking
+  // via the Sheets/Drive/Picker APIs, and real read/write of the shared
+  // settings blob (A1 = JSON payload, B1 = revision marker for the
+  // conflict check on push).
+  // ---------------------------------------------------------------
+
+  // Public identifiers, not secrets — same category as the GitHub Pages URL
+  // itself. The API key is restricted to this domain in the Cloud Console.
+  const CLIENT_ID = '867218455053-8fqh7k0se65qlpqv5dgde7a493a21e9t.apps.googleusercontent.com';
+  const API_KEY = 'AIzaSyBzpVYlaDV8JPSNPZEgwUGpIrHRjEG5vMc';
+  const PROJECT_NUMBER = '867218455053';
+
+  const locLocal = document.getElementById('loc-local');
+  const locShared = document.getElementById('loc-shared');
+  const sharedPanel = document.getElementById('shared-panel');
+  const generalFields = document.getElementById('general-settings-fields');
+  const aiFields = document.getElementById('ai-settings-fields');
+  const generalLockMsg = document.getElementById('general-lock-msg');
+  const aiLockMsg = document.getElementById('ai-lock-msg');
+  const dirtyBanner = document.getElementById('dirty-banner');
+  const pullPushRow = document.getElementById('pull-push-row');
+  const pullStatusEl = document.getElementById('pull-status');
+  const pushStatusEl = document.getElementById('push-status');
+  const signinBtn = document.getElementById('signin-btn');
+  const signinStatusEl = document.getElementById('signin-status');
+  const filePillWrap = document.getElementById('file-pill-wrap');
+  const filePillNameEl = document.getElementById('file-pill-name');
+  const createFileBtn = document.getElementById('create-file-btn');
+  const chooseFileBtn = document.getElementById('choose-file-btn');
+  const unpickFileBtn = document.getElementById('unpick-file-btn');
+
+  // These are genuine settings (which file, when last synced), not session
+  // state, so they persist across a refresh the same way everything else in
+  // Settings does. The token itself is included here too: reusing a
+  // still-valid token needs no network call and no popup, so it's safe to
+  // restore automatically — unlike requesting a NEW token, which does need
+  // a popup and therefore does need an actual click (see the sign-in
+  // button's handler). Only once the stored token has genuinely expired do
+  // we ask for a fresh one.
+  const SYNC_STATE_KEY = 'korero_test_sync_state';
+  function persistSyncState() {
+    safeSet(SYNC_STATE_KEY, JSON.stringify({
+      storageLocation: locShared.checked ? 'shared' : 'local',
+      accessToken: accessToken,
+      tokenExpiresAt: tokenExpiresAt,
+      fileId: fileConnected ? connectedFileId : '',
+      fileName: fileConnected ? filePillNameEl.textContent : '',
+      lastKnownRevision: lastKnownRevision,
+      lastPulled: pullStatusEl.textContent,
+      lastPushed: pushStatusEl.textContent,
+      dirty: dirtySinceLastPush
+    }));
+  }
+
+  let accessToken = null;
+  let tokenExpiresAt = null;
+  let tokenClient = null;
+  let pickerLoaded = false;
+  let signedIn = false;
+  let fileConnected = false;
+  let connectedFileId = null;
+  let lastKnownRevision = 0;
+  let dirtySinceLastPush = false;
+
+  function updateDirtyBannerVisibility() {
+    dirtyBanner.style.display = (dirtySinceLastPush && locShared.checked) ? 'flex' : 'none';
+  }
+
+  function refreshLockState() {
+    const shared = locShared.checked;
+    sharedPanel.style.display = shared ? '' : 'none';
+    const canSync = signedIn && fileConnected;
+    const unlocked = !shared || canSync;
+
+    pullPushRow.classList.toggle('disabled', !canSync);
+    unpickFileBtn.disabled = !signedIn;
+
+    [ [generalFields, generalLockMsg], [aiFields, aiLockMsg] ].forEach(([fieldsEl, msgEl]) => {
+      fieldsEl.classList.toggle('disabled', !unlocked);
+      msgEl.style.display = (shared && !unlocked) ? '' : 'none';
+    });
+
+    updateDirtyBannerVisibility();
+  }
+  [locLocal, locShared].forEach(r => r.addEventListener('change', () => { refreshLockState(); persistSyncState(); }));
+
+  window.addEventListener('load', () => {
+    if (window.gapi) {
+      gapi.load('picker', () => { pickerLoaded = true; });
+    }
+  });
+
+  function describeTokenExpiry() {
+    const minsLeft = Math.round((tokenExpiresAt - Date.now()) / 60000);
+    return minsLeft > 0 ? `Signed in. Token expires in ~${minsLeft} min.` : 'Signed in.';
+  }
+
+  function updateSigninButtonLabel() {
+    signinBtn.textContent = signedIn ? 'Sign out' : 'Sign in with Google';
+  }
+
+  function ensureTokenClient() {
+    if (tokenClient) return tokenClient;
+    if (typeof google === 'undefined' || !google.accounts) {
+      signinStatusEl.textContent = "Couldn't reach Google's sign-in script — check your connection and try again.";
+      return null;
+    }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: (resp) => {
+        if (resp.error) {
+          signinStatusEl.textContent = 'Sign-in failed: ' + resp.error;
+          return;
+        }
+        accessToken = resp.access_token;
+        tokenExpiresAt = Date.now() + resp.expires_in * 1000;
+        signedIn = true;
+        signinStatusEl.textContent = describeTokenExpiry();
+        updateSigninButtonLabel();
+        refreshLockState();
+        persistSyncState();
+      }
+    });
+    return tokenClient;
+  }
+
+  // Local-only sign-out: forgets the token on this device so the fields
+  // lock again and a fresh sign-in is needed here. Doesn't revoke the token
+  // server-side — for a shared-device settings panel like this there's no
+  // real scenario where someone else holds a copy of it to worry about.
+  function signOut() {
+    accessToken = null;
+    tokenExpiresAt = null;
+    signedIn = false;
+    signinStatusEl.textContent = 'Not signed in.';
+    updateSigninButtonLabel();
+    refreshLockState();
+    persistSyncState();
+  }
+
+  signinBtn.addEventListener('click', () => {
+    if (signedIn) { signOut(); return; }
+    signinStatusEl.textContent = 'Requesting sign-in…';
+    const client = ensureTokenClient();
+    if (client) client.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+  });
+
+  // NOTE: there's no automatic reauth attempt on page load. Even a "silent"
+  // (prompt: '') token request still opens a popup under the hood, and
+  // browsers block any popup that isn't triggered by a direct click —
+  // a page finishing loading doesn't count as a user gesture. So a fresh
+  // token can only be requested from within the button's own click handler
+  // above, which IS a genuine gesture. Google typically won't show a real
+  // consent screen there if access was already granted previously — it
+  // resolves near-instantly — so in practice this is still a single tap,
+  // not a repeat of the full sign-in flow.
+
+  // The Picker sometimes calculates its position before it's actually
+  // finished laying out, leaving it mispositioned until something else
+  // happens to trigger a resize. Forcing one ourselves right after showing
+  // it fixes that immediately instead of waiting on an incidental resize.
+  function showPicker(picker) {
+    picker.setVisible(true);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  }
+  function connectFile(id, name) {
+    fileConnected = true;
+    connectedFileId = id;
+    filePillWrap.style.display = '';
+    filePillNameEl.textContent = name;
+    createFileBtn.disabled = true;
+    chooseFileBtn.disabled = true;
+    refreshLockState();
+  }
+
+  function clearDirty() {
+    dirtySinceLastPush = false;
+    updateDirtyBannerVisibility();
+  }
+
+  async function sheetsFetch(method, range, body) {
+    let url = `https://sheets.googleapis.com/v4/spreadsheets/${connectedFileId}/values/${range}`;
+    if (method === 'PUT') url += '?valueInputOption=RAW';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        signOut();
+        throw new Error('Your session expired — please sign in again.');
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status})`);
+    }
+    return data;
+  }
+
+  // Everything that syncs, bundled as one JSON blob in A1. The API key is
+  // base64'd — a courtesy against a casual glance at the sheet, not real
+  // security (anyone with edit access to the file can decode it just as
+  // easily as reading it plain).
+  function buildSettingsPayload() {
+    const apiKey = getSavedApiKey();
+    return {
+      savedNames: savedNames,
+      aiEnabled: aiEnabledToggle.checked,
+      aiModel: modelSelect.value,
+      aiContextTerms: contextTermsInput.value,
+      aiTidyPrompt: tidyPromptInput.value,
+      claudeApiKeyB64: apiKey ? btoa(apiKey) : ''
+    };
+  }
+
+  function applySettingsPayload(payload) {
+    savedNames = Array.isArray(payload.savedNames) ? payload.savedNames : [];
+    sortNames();
+    saveSavedNamesLocally();
+    renderSavedNamesSettings();
+
+    aiEnabledToggle.checked = !!payload.aiEnabled;
+    safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false');
+    modelSelect.value = payload.aiModel || 'claude-sonnet-5';
+    safeSet(AI_MODEL_KEY, modelSelect.value);
+    contextTermsInput.value = payload.aiContextTerms || '';
+    safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value);
+    tidyPromptInput.value = payload.aiTidyPrompt || DEFAULT_TIDY_PROMPT;
+    safeSet(AI_PROMPT_KEY, tidyPromptInput.value);
+    updateAiSubSettingsVisibility();
+
+    try {
+      if (payload.claudeApiKeyB64) safeSet(API_KEY_STORAGE_KEY, atob(payload.claudeApiKeyB64));
+      else localStorage.removeItem(API_KEY_STORAGE_KEY);
+    } catch (e) { /* malformed key or storage unavailable — leave whatever's already there */ }
+    renderApiKeyStatus();
+  }
+
+  async function pushToFile(expectedRevision) {
+    const newRevision = expectedRevision + 1;
+    await sheetsFetch('PUT', 'A1:B1', { values: [[ JSON.stringify(buildSettingsPayload()), String(newRevision) ]] });
+    lastKnownRevision = newRevision;
+  }
+
+  async function pullFromFile() {
+    const data = await sheetsFetch('GET', 'A1:B1');
+    const rawJson = data.values?.[0]?.[0];
+    const rawRevision = data.values?.[0]?.[1];
+    if (!rawJson) throw new Error("This file doesn't have any shared settings in it yet.");
+    let payload;
+    try { payload = JSON.parse(rawJson); }
+    catch (e) { throw new Error("The file's content doesn't look like valid settings data."); }
+    applySettingsPayload(payload);
+    lastKnownRevision = parseInt(rawRevision, 10) || 0;
+  }
+
+  async function doPush() {
+    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
+    const prevText = pushStatusEl.textContent;
+    pushStatusEl.textContent = 'Pushing…';
+    try {
+      const b1Data = await sheetsFetch('GET', 'B1');
+      const sharedRevision = parseInt(b1Data.values?.[0]?.[0], 10) || 0;
+      if (sharedRevision !== lastKnownRevision) {
+        const overwrite = confirm('Shared settings have changed since you last synced. Overwrite anyway? (Cancel to pull the latest first instead.)');
+        if (!overwrite) { pushStatusEl.textContent = prevText; return; }
+      }
+      await pushToFile(sharedRevision);
+      pushStatusEl.textContent = 'Last pushed: ' + new Date().toLocaleTimeString();
+      clearDirty();
+      persistSyncState();
+    } catch (err) {
+      pushStatusEl.textContent = 'Last pushed: failed at ' + new Date().toLocaleTimeString();
+      alert("Couldn't push: " + err.message);
+    }
+  }
+
+  async function doPull() {
+    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
+    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
+      return;
+    }
+    const prevText = pullStatusEl.textContent;
+    pullStatusEl.textContent = 'Pulling…';
+    try {
+      await pullFromFile();
+      pullStatusEl.textContent = 'Last pulled: ' + new Date().toLocaleTimeString();
+      clearDirty();
+      persistSyncState();
+    } catch (err) {
+      pullStatusEl.textContent = prevText;
+      alert("Couldn't pull: " + err.message);
+    }
+  }
+
+  async function createSheetInFolder(folderId) {
+    createFileBtn.disabled = true;
+    createFileBtn.textContent = 'Creating…';
+    try {
+      const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Kōrero shared settings',
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          parents: [folderId]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || `Request failed (${res.status})`);
+
+      connectFile(data.id, data.name);
+      lastKnownRevision = 0;
+      pushStatusEl.textContent = 'Writing initial settings…';
+      try {
+        await pushToFile(0);
+        pushStatusEl.textContent = 'Last pushed: ' + new Date().toLocaleTimeString() + ' (initial)';
+        pullStatusEl.textContent = 'Last pulled: ' + new Date().toLocaleTimeString() + ' (in sync — nothing to pull yet)';
+        clearDirty();
+        persistSyncState();
+      } catch (err) {
+        pushStatusEl.textContent = 'Last pushed: failed';
+        alert('Created the file, but the initial write failed: ' + err.message);
+      }
+    } catch (err) {
+      alert("Couldn't create the sheet: " + err.message);
+      createFileBtn.disabled = false;
+    } finally {
+      createFileBtn.textContent = 'Create shared file';
+    }
+  }
+
+  createFileBtn.addEventListener('click', () => {
+    if (!accessToken) { alert('Sign in first.'); return; }
+    if (!pickerLoaded) { alert('Picker library still loading — try again in a second.'); return; }
+
+    const folderView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setSelectFolderEnabled(true)
+      .setIncludeFolders(true);
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(folderView)
+      .setTitle('Choose where to create the shared settings file')
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(API_KEY)
+      .setAppId(PROJECT_NUMBER)
+      .setCallback((data) => {
+        if (data.action !== google.picker.Action.PICKED) return;
+        createSheetInFolder(data.docs[0].id);
+      })
+      .build();
+    showPicker(picker);
+  });
+
+  chooseFileBtn.addEventListener('click', () => {
+    if (!accessToken) { alert('Sign in first.'); return; }
+    if (!pickerLoaded) { alert('Picker library still loading — try again in a second.'); return; }
+    if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Choosing an existing file will pull its settings and overwrite them — continue?')) {
+      return;
+    }
+
+    const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+      .setMimeTypes('application/vnd.google-apps.spreadsheet');
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(API_KEY)
+      .setAppId(PROJECT_NUMBER)
+      .setCallback(async (data) => {
+        if (data.action !== google.picker.Action.PICKED) return;
+        const file = data.docs[0];
+        connectFile(file.id, file.name);
+        pullStatusEl.textContent = 'Pulling…';
+        try {
+          await pullFromFile();
+          pullStatusEl.textContent = 'Last pulled: ' + new Date().toLocaleTimeString();
+          pushStatusEl.textContent = 'Last pushed: ' + new Date().toLocaleTimeString() + ' (in sync — matches what was just pulled)';
+          clearDirty();
+          persistSyncState();
+        } catch (err) {
+          pullStatusEl.textContent = 'Last pulled: failed';
+          alert("Connected the file, but couldn't read its settings: " + err.message);
+        }
+      })
+      .build();
+    showPicker(picker);
+  });
+
+  document.getElementById('unpick-file-btn').addEventListener('click', () => {
+    fileConnected = false;
+    connectedFileId = null;
+    lastKnownRevision = 0;
+    filePillWrap.style.display = 'none';
+    createFileBtn.disabled = false;
+    chooseFileBtn.disabled = false;
+    pullStatusEl.textContent = 'Never pulled';
+    pushStatusEl.textContent = 'Never pushed';
+    clearDirty();
+    refreshLockState();
+    persistSyncState();
+  });
+
+  document.getElementById('pull-btn').addEventListener('click', doPull);
+  document.getElementById('push-btn').addEventListener('click', doPush);
+  document.getElementById('save-shortcut-btn').addEventListener('click', doPush);
+  document.getElementById('revert-shortcut-btn').addEventListener('click', doPull);
+
+  function markDirty() {
+    dirtySinceLastPush = true;
+    updateDirtyBannerVisibility();
+    persistSyncState();
+  }
+
+  (function restoreSyncState() {
+    let saved = null;
+    try { saved = JSON.parse(safeGet(SYNC_STATE_KEY, 'null')); } catch (e) { saved = null; }
+    if (saved) {
+      if (saved.storageLocation === 'shared') locShared.checked = true; else locLocal.checked = true;
+
+      if (saved.accessToken && saved.tokenExpiresAt && saved.tokenExpiresAt > Date.now()) {
+        // Still genuinely valid — reuse it directly, no network call, no
+        // popup, nothing for the person to do.
+        accessToken = saved.accessToken;
+        tokenExpiresAt = saved.tokenExpiresAt;
+        signedIn = true;
+        signinStatusEl.textContent = describeTokenExpiry();
+        updateSigninButtonLabel();
+      } else if (saved.accessToken) {
+        // We did have a token, but it's actually expired now — this is the
+        // one case that genuinely needs a click, since getting a new token
+        // means a popup, and popups need a real user gesture.
+        signinStatusEl.textContent = 'Your session expired — tap "Sign in with Google" to continue.';
+      }
+
+      if (saved.fileId) {
+        fileConnected = true;
+        connectedFileId = saved.fileId;
+        lastKnownRevision = saved.lastKnownRevision || 0;
+        filePillWrap.style.display = '';
+        filePillNameEl.textContent = saved.fileName;
+        createFileBtn.disabled = true;
+        chooseFileBtn.disabled = true;
+      }
+      if (saved.lastPulled) pullStatusEl.textContent = saved.lastPulled;
+      if (saved.lastPushed) pushStatusEl.textContent = saved.lastPushed;
+      if (saved.dirty) dirtySinceLastPush = true;
+    }
+  })();
+
+  refreshLockState();
+
+  // ---------------------------------------------------------------
+  // Below: tamariki names + AI settings logic, carried over as-is
+  // from index.html (same localStorage keys), just wired to also
+  // call markDirty() on every change, and nested under the new
+  // General settings / AI settings headings.
+  // ---------------------------------------------------------------
+
+  function safeGet(key, fallback) {
+    try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+  }
+  function safeSet(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* ignore */ }
+  }
+
+  // --- Tamariki names ---
+  const SAVED_NAMES_KEY = 'korero_saved_names';
+  function sortNames() { savedNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); }
+  let savedNames = [];
+  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')); } catch (e) { savedNames = []; }
+  sortNames();
+
+  const savedNamesInput = document.getElementById('saved-names-input');
+  const addSavedNameBtn = document.getElementById('add-saved-name-btn');
+  const savedNamesChipsEl = document.getElementById('saved-names-chips');
+
+  function saveSavedNamesLocally() {
+    try { localStorage.setItem(SAVED_NAMES_KEY, JSON.stringify(savedNames)); } catch (e) { /* ignore */ }
+  }
+  function persistSavedNames() {
+    saveSavedNamesLocally();
+    markDirty();
+  }
+
+  function capitalizeName(str) {
+    return str.trim().split(/\s+/).map(word =>
+      word.split('-').map(part =>
+        part.length ? part.charAt(0).toUpperCase() + part.slice(1) : part
+      ).join('-')
+    ).join(' ');
+  }
+
+  function renderSavedNamesSettings() {
+    savedNamesChipsEl.innerHTML = '';
+    savedNames.forEach(name => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'name-chip';
+      chip.innerHTML = `<span>${name}</span><span class="x">×</span>`;
+      chip.addEventListener('click', () => {
+        savedNames = savedNames.filter(n => n !== name);
+        persistSavedNames();
+        renderSavedNamesSettings();
+      });
+      savedNamesChipsEl.appendChild(chip);
+    });
+  }
+  renderSavedNamesSettings();
+
+  function addSavedNamesFromInput() {
+    const raw = savedNamesInput.value;
+    const names = raw.split(',').map(s => capitalizeName(s)).filter(Boolean);
+    if (!names.length) return;
+    let changed = false;
+    names.forEach(name => {
+      if (!savedNames.includes(name)) { savedNames.push(name); changed = true; }
+    });
+    if (changed) {
+      sortNames();
+      persistSavedNames();
+      renderSavedNamesSettings();
+    }
+    savedNamesInput.value = '';
+  }
+  addSavedNameBtn.addEventListener('click', addSavedNamesFromInput);
+  document.getElementById('saved-names-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    addSavedNamesFromInput();
+  });
+
+  // --- AI settings ---
+  const AI_ENABLED_KEY = 'korero_ai_enabled';
+  const AI_MODEL_KEY = 'korero_ai_model';
+  const AI_PROMPT_KEY = 'korero_ai_tidy_prompt';
+  const AI_CONTEXT_TERMS_KEY = 'korero_ai_context_terms';
+  const API_KEY_STORAGE_KEY = 'korero_claude_api_key';
+  const DEFAULT_TIDY_PROMPT = `The following text was captured using voice-to-text while an early childhood educator was talking through what they observed. Please lightly tidy it up:
+- Break it into natural, standard-length sentences with correct capitalisation and punctuation.
+- Remove verbal filler and thinking-out-loud disfluencies.
+- Fix words that were clearly mangled by voice-to-text, using context to guess the intended word.
+- Beyond removing filler and fixing mangled words/sentence breaks, do NOT rephrase, summarise, shorten, or otherwise change the wording, tone, or meaning.
+- Do not add any information that wasn't there.
+Return ONLY the corrected text, with no preamble, explanation, or quotation marks around it.`;
+
+  const aiEnabledToggle = document.getElementById('ai-enabled-toggle');
+  const modelSelect = document.getElementById('model-select');
+  const tidyPromptInput = document.getElementById('tidy-prompt-input');
+  const contextTermsInput = document.getElementById('context-terms-input');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyEmptyState = document.getElementById('api-key-empty-state');
+  const apiKeySavedState = document.getElementById('api-key-saved-state');
+  const apiKeyBadge = document.getElementById('api-key-badge');
+
+  const aiSubSettings = document.getElementById('ai-sub-settings');
+
+  aiEnabledToggle.checked = safeGet(AI_ENABLED_KEY, 'false') === 'true';
+  modelSelect.value = safeGet(AI_MODEL_KEY, 'claude-sonnet-5');
+  tidyPromptInput.value = safeGet(AI_PROMPT_KEY, DEFAULT_TIDY_PROMPT);
+  contextTermsInput.value = safeGet(AI_CONTEXT_TERMS_KEY, '');
+
+  function updateAiSubSettingsVisibility() {
+    aiSubSettings.classList.toggle('disabled', !aiEnabledToggle.checked);
+  }
+  updateAiSubSettingsVisibility();
+
+  aiEnabledToggle.addEventListener('change', () => {
+    safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false');
+    updateAiSubSettingsVisibility();
+    markDirty();
+  });
+  modelSelect.addEventListener('change', () => { safeSet(AI_MODEL_KEY, modelSelect.value); markDirty(); });
+  tidyPromptInput.addEventListener('input', () => { safeSet(AI_PROMPT_KEY, tidyPromptInput.value); markDirty(); });
+  contextTermsInput.addEventListener('input', () => { safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value); markDirty(); });
+
+  function maskApiKey(key) {
+    if (key.length <= 10) return key[0] + '…' + key.slice(-2);
+    return key.slice(0, 7) + '…' + key.slice(-4);
+  }
+  function getSavedApiKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function renderApiKeyStatus() {
+    const saved = getSavedApiKey();
+    if (saved) {
+      apiKeyBadge.textContent = maskApiKey(saved);
+      apiKeyEmptyState.style.display = 'none';
+      apiKeySavedState.style.display = 'block';
+    } else {
+      apiKeyEmptyState.style.display = '';
+      apiKeySavedState.style.display = 'none';
+    }
+  }
+  renderApiKeyStatus();
+
+  document.getElementById('save-api-key-btn').addEventListener('click', () => {
+    const val = apiKeyInput.value.trim();
+    if (!val) return;
+    try { localStorage.setItem(API_KEY_STORAGE_KEY, val); } catch (e) { alert("Couldn't save — browser storage isn't available here."); return; }
+    apiKeyInput.value = '';
+    renderApiKeyStatus();
+    markDirty();
+  });
+  document.getElementById('remove-api-key-btn').addEventListener('click', () => {
+    try { localStorage.removeItem(API_KEY_STORAGE_KEY); } catch (e) { /* ignore */ }
+    apiKeyInput.value = '';
+    renderApiKeyStatus();
+    markDirty();
+  });
+</script>
+
+</body>
+</html>
