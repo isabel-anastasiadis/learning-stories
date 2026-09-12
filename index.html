@@ -904,13 +904,14 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     function spacer() { return new Paragraph({ children: [], spacing: { after: 0 } }); }
 
     const includeTitle = document.getElementById('include-title').checked;
-    const children = [];
-    if (includeTitle) {
-      children.push(new Paragraph({
-        children: [new TextRun({ text: title, font: 'Calibri', bold: true, size: 80, color: TITLE_SOFT_BLACK })],
+    const children = [
+      new Paragraph({
+        children: [new TextRun({
+          text: includeTitle ? title : '\u00A0', font: 'Calibri', bold: true, size: 80, color: TITLE_SOFT_BLACK
+        })],
         spacing: { after: 80 }
-      }));
-    }
+      })
+    ];
 
     // --- photos, floating side-by-side in rows with "break text" (top/bottom) wrap ---
     if (photos.length) {
@@ -1130,11 +1131,6 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         try {
           await navigator.share({ files: [file], title: title });
           status.textContent = 'Shared! Save it to Drive or Files.';
-          selectedGoalIds.length = 0;
-          renderGoalChips();
-          photos = [];
-          renderPhotoGrid();
-          clearDraft();
           btn.disabled = false;
           btn.textContent = '📄 Create Word Document';
           return;
@@ -1146,11 +1142,6 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       // Fallback: plain download
       saveAs(blob, filename);
       status.textContent = 'Downloaded. Look for it in Files, or share it from there.';
-      selectedGoalIds.length = 0;
-      renderGoalChips();
-      photos = [];
-      renderPhotoGrid();
-      clearDraft();
     } catch (err) {
       status.textContent = 'Something went wrong generating the document.';
       console.error(err);
