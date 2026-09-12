@@ -84,6 +84,7 @@
   .dirty-banner {
     margin-top: 14px; font-size: 13px; color: #854F0B; background: #FAEEDA;
     padding: 8px 12px; border-radius: 8px; display: none;
+    align-items: center; justify-content: space-between; gap: 10px;
   }
 
   .field { margin-bottom: 16px; }
@@ -133,7 +134,7 @@
   </div>
 </div>
 
-<div class="dirty-banner" id="dirty-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+<div class="dirty-banner" id="dirty-banner">
   <span>Unsaved changes</span>
   <button type="button" id="save-shortcut-btn" style="flex-shrink:0; padding: 6px 12px;">Save</button>
 </div>
@@ -237,7 +238,8 @@
       signedIn: mockSignedIn,
       fileName: mockFileConnected ? filePillNameEl.textContent : '',
       lastPulled: pullStatusEl.textContent,
-      lastPushed: pushStatusEl.textContent
+      lastPushed: pushStatusEl.textContent,
+      dirty: dirtySinceLastPush
     }));
   }
 
@@ -300,21 +302,25 @@
 
   createFileBtn.addEventListener('click', () => {
     // STAGE 3/4: real "create" flow — make the sheet via the Picker/Drive API,
-    // then push current local settings as its initial content (nothing to pull yet)
+    // then push current local settings as its initial content (nothing to pull yet).
+    // Both directions are guaranteed in sync at this instant, so stamp both.
     mockConnectFile('centre-settings.xlsx (new, mocked)');
     pushStatusEl.textContent = 'Last pushed: just now (mocked — initial push on create)';
+    pullStatusEl.textContent = 'Last pulled: just now (in sync — nothing to pull yet)';
     clearDirty();
     persistSyncState();
   });
 
   chooseFileBtn.addEventListener('click', () => {
     // STAGE 3/4: real "choose existing" flow — pick via the Picker, then pull
-    // its contents immediately so you're looking at the shared settings, not stale local ones
+    // its contents immediately so you're looking at the shared settings, not
+    // stale local ones. Local now exactly matches shared, so stamp both.
     if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Choosing an existing file will pull its settings and overwrite them — continue?')) {
       return;
     }
     mockConnectFile('playcentre-shared.xlsx (mocked)');
     pullStatusEl.textContent = 'Last pulled: just now (mocked — pulled on choose)';
+    pushStatusEl.textContent = 'Last pushed: just now (in sync — matches what was just pulled)';
     clearDirty();
     persistSyncState();
   });
@@ -339,6 +345,7 @@
     if (!locShared.checked) return;
     dirtySinceLastPush = true;
     dirtyBanner.style.display = 'flex';
+    persistSyncState();
   }
 
   (function restoreSyncState() {
@@ -359,10 +366,14 @@
       }
       if (saved.lastPulled) pullStatusEl.textContent = saved.lastPulled;
       if (saved.lastPushed) pushStatusEl.textContent = saved.lastPushed;
+      if (saved.storageLocation === 'shared' && saved.dirty) {
+        dirtySinceLastPush = true;
+      }
     }
   })();
 
   refreshLockState();
+  if (dirtySinceLastPush && locShared.checked) dirtyBanner.style.display = 'flex';
 
   // ---------------------------------------------------------------
   // Below: tamariki names + AI settings logic, carried over as-is
