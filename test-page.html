@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Settings Restructure — Test Page (Stage 1)</title>
+<title>Settings Restructure — Test Page (Stage 2)</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js"></script>
 <style>
   :root{
     --bg: #FBF7F0; --card: #FFFFFF; --ink: #2E2A25; --ink-soft: #6B6459;
@@ -92,8 +94,8 @@
 </head>
 <body>
 
-<h1>Stage 1 — settings restructure (mocked sync)</h1>
-<p class="status">No real Google calls in this stage — sign-in/file/pull/push are all mocked so you can test the heading hierarchy and lock/grey behaviour first. Stage 2 wires real sign-in on top of this.</p>
+<h1>Stage 2 — real sign-in and file connection</h1>
+<p class="status">Pull/push (the actual settings data) are still mocked — this stage is just real Google sign-in, real file creation, and the real Picker. Stage 4 wires the actual cell reads/writes.</p>
 
 <div class="settings-group-label">Settings storage</div>
 <label class="radio-label">
@@ -201,14 +203,17 @@
 
 <script>
   // ---------------------------------------------------------------
-  // STAGE 1 SCOPE: heading restructure + storage-location radio +
-  // lock/grey behaviour. Sign-in/file/pull/push below are MOCKED —
-  // they just flip local flags and update status text, no network
-  // calls. Stage 2 replaces signinBtn's handler with real Google
-  // OAuth (see old test-page.html v2 for the working token-client
-  // code); stage 3 wires the real Picker; stage 4 wires real
-  // Sheets reads/writes + the revision-marker conflict check.
+  // STAGE 2 SCOPE: real Google sign-in (drive.file scope), real file
+  // creation (Sheets API), and the real Picker for "choose existing".
+  // Pull/push of the actual settings data are still mocked — that's
+  // stage 4, which also adds the revision-marker conflict check.
   // ---------------------------------------------------------------
+
+  // Public identifiers, not secrets — same category as the GitHub Pages URL
+  // itself. The API key is restricted to this domain in the Cloud Console.
+  const CLIENT_ID = '867218455053-8fqh7k0se65qlpqv5dgde7a493a21e9t.apps.googleusercontent.com';
+  const API_KEY = 'AIzaSyBzpVYlaDV8JPSNPZEgwUGpIrHRjEG5vMc';
+  const PROJECT_NUMBER = '867218455053';
 
   const locLocal = document.getElementById('loc-local');
   const locShared = document.getElementById('loc-shared');
@@ -228,23 +233,28 @@
 
   // These are genuine settings (which file, when last synced), not session
   // state, so they persist across a refresh the same way everything else in
-  // Settings does. STAGE 2: mockSignedIn becomes a real "is my token still
-  // valid" check on load instead of a stored boolean — you can't durably
-  // "stay signed in" the way a file connection persists.
+  // Settings does. signedIn here reflects whether we HELD a valid token as of
+  // the last check — see attemptSilentReauth below for how that's actually
+  // re-verified on load, since a token itself can't durably "stay valid".
   const SYNC_STATE_KEY = 'korero_test_sync_state';
   function persistSyncState() {
     safeSet(SYNC_STATE_KEY, JSON.stringify({
       storageLocation: locShared.checked ? 'shared' : 'local',
-      signedIn: mockSignedIn,
-      fileName: mockFileConnected ? filePillNameEl.textContent : '',
+      signedIn: signedIn,
+      fileId: fileConnected ? connectedFileId : '',
+      fileName: fileConnected ? filePillNameEl.textContent : '',
       lastPulled: pullStatusEl.textContent,
       lastPushed: pushStatusEl.textContent,
       dirty: dirtySinceLastPush
     }));
   }
 
-  let mockSignedIn = false;
-  let mockFileConnected = false;
+  let accessToken = null;
+  let tokenClient = null;
+  let pickerLoaded = false;
+  let signedIn = false;
+  let fileConnected = false;
+  let connectedFileId = null;
   let dirtySinceLastPush = false;
 
   function updateDirtyBannerVisibility() {
@@ -254,7 +264,7 @@
   function refreshLockState() {
     const shared = locShared.checked;
     sharedPanel.style.display = shared ? '' : 'none';
-    const unlocked = !shared || (mockSignedIn && mockFileConnected);
+    const unlocked = !shared || (signedIn && fileConnected);
 
     [ [generalFields, generalLockMsg], [aiFields, aiLockMsg] ].forEach(([fieldsEl, msgEl]) => {
       fieldsEl.classList.toggle('disabled', !unlocked);
@@ -265,16 +275,51 @@
   }
   [locLocal, locShared].forEach(r => r.addEventListener('change', () => { refreshLockState(); persistSyncState(); }));
 
-  document.getElementById('signin-btn').addEventListener('click', () => {
-    // STAGE 2: replace with google.accounts.oauth2.initTokenClient(...).requestAccessToken()
-    mockSignedIn = true;
-    signinStatusEl.textContent = 'Signed in just now (mocked)';
-    refreshLockState();
-    persistSyncState();
+  window.addEventListener('load', () => {
+    if (window.gapi) {
+      gapi.load('picker', () => { pickerLoaded = true; });
+    }
   });
 
-  function mockConnectFile(name) {
-    mockFileConnected = true;
+  function ensureTokenClient() {
+    if (tokenClient) return tokenClient;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: (resp) => {
+        if (resp.error) {
+          signinStatusEl.textContent = 'Sign-in failed: ' + resp.error;
+          return;
+        }
+        accessToken = resp.access_token;
+        signedIn = true;
+        const expiresInMin = Math.round(resp.expires_in / 60);
+        signinStatusEl.textContent = `Signed in. Token expires in ~${expiresInMin} min.`;
+        refreshLockState();
+        persistSyncState();
+      }
+    });
+    return tokenClient;
+  }
+
+  document.getElementById('signin-btn').addEventListener('click', () => {
+    signinStatusEl.textContent = 'Requesting sign-in…';
+    ensureTokenClient().requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+  });
+
+  // On load, if we were previously signed in, try a SILENT reauth (no popup)
+  // to get a fresh token — this only refreshes auth, it never reads or
+  // writes the shared file, so it doesn't conflict with keeping pull/push
+  // fully manual. If it fails (or we weren't signed in before), the fields
+  // just stay locked until the person taps "Sign in with Google" themselves.
+  function attemptSilentReauth() {
+    signinStatusEl.textContent = 'Checking sign-in…';
+    ensureTokenClient().requestAccessToken({ prompt: '' });
+  }
+
+  function connectFile(id, name) {
+    fileConnected = true;
+    connectedFileId = id;
     filePillWrap.style.display = '';
     filePillNameEl.textContent = name;
     createFileBtn.disabled = true;
@@ -288,49 +333,110 @@
   }
 
   function doPush() {
-    // STAGE 4: real push — check the shared revision marker first and warn if it moved
-    pushStatusEl.textContent = 'Last pushed: just now (mocked)';
+    // STAGE 4: real push — write the settings JSON to the sheet's A1, check
+    // the shared revision marker in B1 first and warn if it moved
+    pushStatusEl.textContent = 'Last pushed: just now (mocked — real write is stage 4)';
     clearDirty();
     persistSyncState();
   }
 
   function doPull() {
-    // STAGE 4: real pull — check dirtySinceLastPush first and warn before overwriting local
+    // STAGE 4: real pull — read A1 and repopulate the fields from it
     if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
       return;
     }
-    pullStatusEl.textContent = 'Last pulled: just now (mocked)';
+    pullStatusEl.textContent = 'Last pulled: just now (mocked — real read is stage 4)';
     clearDirty();
     persistSyncState();
   }
 
+  async function createSheetInFolder(folderId) {
+    createFileBtn.disabled = true;
+    createFileBtn.textContent = 'Creating…';
+    try {
+      const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Kōrero shared settings',
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          parents: [folderId]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || `Request failed (${res.status})`);
+
+      // Real file, genuinely created just now — both directions are
+      // guaranteed in sync at this instant (nothing pushed/pulled YET,
+      // that's stage 4, but there's also nothing to be out of sync with).
+      connectFile(data.id, data.name);
+      pushStatusEl.textContent = 'Last pushed: just now (in sync — initial write comes in stage 4)';
+      pullStatusEl.textContent = 'Last pulled: just now (in sync — nothing to pull yet)';
+      clearDirty();
+      persistSyncState();
+    } catch (err) {
+      alert("Couldn't create the sheet: " + err.message);
+      createFileBtn.disabled = false;
+    } finally {
+      createFileBtn.textContent = 'Create shared file';
+    }
+  }
+
   createFileBtn.addEventListener('click', () => {
-    // STAGE 3/4: real "create" flow — make the sheet via the Picker/Drive API,
-    // then push current local settings as its initial content (nothing to pull yet).
-    // Both directions are guaranteed in sync at this instant, so stamp both.
-    mockConnectFile('centre-settings.xlsx (new, mocked)');
-    pushStatusEl.textContent = 'Last pushed: just now (mocked — initial push on create)';
-    pullStatusEl.textContent = 'Last pulled: just now (in sync — nothing to pull yet)';
-    clearDirty();
-    persistSyncState();
+    if (!accessToken) { alert('Sign in first.'); return; }
+    if (!pickerLoaded) { alert('Picker library still loading — try again in a second.'); return; }
+
+    const folderView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setSelectFolderEnabled(true)
+      .setIncludeFolders(true);
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(folderView)
+      .setTitle('Choose where to create the shared settings file')
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(API_KEY)
+      .setAppId(PROJECT_NUMBER)
+      .setCallback((data) => {
+        if (data.action !== google.picker.Action.PICKED) return;
+        createSheetInFolder(data.docs[0].id);
+      })
+      .build();
+    picker.setVisible(true);
   });
 
   chooseFileBtn.addEventListener('click', () => {
-    // STAGE 3/4: real "choose existing" flow — pick via the Picker, then pull
-    // its contents immediately so you're looking at the shared settings, not
-    // stale local ones. Local now exactly matches shared, so stamp both.
+    if (!accessToken) { alert('Sign in first.'); return; }
+    if (!pickerLoaded) { alert('Picker library still loading — try again in a second.'); return; }
     if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Choosing an existing file will pull its settings and overwrite them — continue?')) {
       return;
     }
-    mockConnectFile('playcentre-shared.xlsx (mocked)');
-    pullStatusEl.textContent = 'Last pulled: just now (mocked — pulled on choose)';
-    pushStatusEl.textContent = 'Last pushed: just now (in sync — matches what was just pulled)';
-    clearDirty();
-    persistSyncState();
+
+    const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+      .setMimeTypes('application/vnd.google-apps.spreadsheet');
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(API_KEY)
+      .setAppId(PROJECT_NUMBER)
+      .setCallback((data) => {
+        if (data.action !== google.picker.Action.PICKED) return;
+        const file = data.docs[0];
+        connectFile(file.id, file.name);
+        // Real pick, but the actual content read is stage 4 — so this
+        // "pulled" is provisional until that lands; local isn't overwritten yet.
+        pullStatusEl.textContent = 'Last pulled: just now (chosen — real read is stage 4)';
+        pushStatusEl.textContent = 'Last pushed: just now (in sync — matches what was just chosen)';
+        clearDirty();
+        persistSyncState();
+      })
+      .build();
+    picker.setVisible(true);
   });
 
   document.getElementById('unpick-file-btn').addEventListener('click', () => {
-    mockFileConnected = false;
+    fileConnected = false;
+    connectedFileId = null;
     filePillWrap.style.display = 'none';
     createFileBtn.disabled = false;
     chooseFileBtn.disabled = false;
@@ -351,17 +457,20 @@
     persistSyncState();
   }
 
+  let wasSignedIn = false;
+
   (function restoreSyncState() {
     let saved = null;
     try { saved = JSON.parse(safeGet(SYNC_STATE_KEY, 'null')); } catch (e) { saved = null; }
     if (saved) {
       if (saved.storageLocation === 'shared') locShared.checked = true; else locLocal.checked = true;
-      // STAGE 2: mockSignedIn shouldn't just be trusted from storage — check
-      // the token's actually still valid (silent reauth) before unlocking
-      mockSignedIn = !!saved.signedIn;
-      if (saved.signedIn) signinStatusEl.textContent = 'Signed in (restored)';
-      if (saved.fileName) {
-        mockFileConnected = true;
+      // signedIn itself is NOT trusted from storage — attemptSilentReauth
+      // below re-verifies it. wasSignedIn just decides whether that attempt
+      // is worth making at all.
+      wasSignedIn = !!saved.signedIn;
+      if (saved.fileId) {
+        fileConnected = true;
+        connectedFileId = saved.fileId;
         filePillWrap.style.display = '';
         filePillNameEl.textContent = saved.fileName;
         createFileBtn.disabled = true;
@@ -374,6 +483,7 @@
   })();
 
   refreshLockState();
+  if (wasSignedIn) attemptSilentReauth();
 
   // ---------------------------------------------------------------
   // Below: tamariki names + AI settings logic, carried over as-is
