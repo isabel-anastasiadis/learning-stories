@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings Restructure — Test Page (Stage 2)</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://accounts.google.com/gsi/client"></script>
 <script src="https://apis.google.com/js/api.js"></script>
 <style>
   :root{
@@ -283,6 +283,10 @@
 
   function ensureTokenClient() {
     if (tokenClient) return tokenClient;
+    if (typeof google === 'undefined' || !google.accounts) {
+      signinStatusEl.textContent = "Couldn't reach Google's sign-in script — check your connection and try again.";
+      return null;
+    }
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: 'https://www.googleapis.com/auth/drive.file',
@@ -304,7 +308,8 @@
 
   document.getElementById('signin-btn').addEventListener('click', () => {
     signinStatusEl.textContent = 'Requesting sign-in…';
-    ensureTokenClient().requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+    const client = ensureTokenClient();
+    if (client) client.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
   });
 
   // On load, if we were previously signed in, try a SILENT reauth (no popup)
@@ -314,9 +319,18 @@
   // just stay locked until the person taps "Sign in with Google" themselves.
   function attemptSilentReauth() {
     signinStatusEl.textContent = 'Checking sign-in…';
-    ensureTokenClient().requestAccessToken({ prompt: '' });
+    const client = ensureTokenClient();
+    if (client) client.requestAccessToken({ prompt: '' });
   }
 
+  // The Picker sometimes calculates its position before it's actually
+  // finished laying out, leaving it mispositioned until something else
+  // happens to trigger a resize. Forcing one ourselves right after showing
+  // it fixes that immediately instead of waiting on an incidental resize.
+  function showPicker(picker) {
+    picker.setVisible(true);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  }
   function connectFile(id, name) {
     fileConnected = true;
     connectedFileId = id;
@@ -401,7 +415,7 @@
         createSheetInFolder(data.docs[0].id);
       })
       .build();
-    picker.setVisible(true);
+    showPicker(picker);
   });
 
   chooseFileBtn.addEventListener('click', () => {
@@ -431,7 +445,7 @@
         persistSyncState();
       })
       .build();
-    picker.setVisible(true);
+    showPicker(picker);
   });
 
   document.getElementById('unpick-file-btn').addEventListener('click', () => {
