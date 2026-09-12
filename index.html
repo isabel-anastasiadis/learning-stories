@@ -22,7 +22,6 @@
     font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase;
     color: var(--ink-soft);
   }
-  .header-actions { display: flex; align-items: center; gap: 14px; }
   .text-btn {
     background: none; border: none; color: var(--ink-soft); font-size: 13px;
     font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: underline;
@@ -157,13 +156,11 @@
       <span class="brand-mark">Kōrero</span>
       <span class="brand-sub">Learning Story</span>
     </div>
-    <div class="header-actions">
-      <a href="settings.html" class="text-btn">⚙️ Settings</a>
-      <button type="button" class="text-btn" id="reset-draft-btn">Reset</button>
-    </div>
+    <a href="settings.html" class="text-btn">⚙️ Settings</a>
   </div>
   <p class="tagline">Fill this in on the floor, finish it on the computer.</p>
 
+  <button type="button" class="secondary-btn" id="reset-draft-btn-top" style="margin-bottom: var(--field-gap);">Reset</button>
 
   <div class="field">
     <label>Photos <span class="optional-tag">optional</span></label>
@@ -252,6 +249,7 @@
   </label>
   <button class="generate-btn" id="generate-btn">Create Word Document</button>
   <div class="status" id="status"></div>
+  <button type="button" class="secondary-btn full-width-btn" id="reset-draft-btn-bottom">Reset</button>
 
   <div id="preview-page"></div>
 
@@ -1222,11 +1220,13 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-empty-headings', 'include-goal-outcomes']
     .forEach(id => document.getElementById(id).addEventListener('input', saveDraftFields));
 
-  document.getElementById('reset-draft-btn').addEventListener('click', () => {
+  function confirmAndResetDraft() {
     if (!confirm("Clear everything you've entered and start fresh? This can't be undone.")) return;
     clearDraft();
     location.reload();
-  });
+  }
+  document.getElementById('reset-draft-btn-top').addEventListener('click', confirmAndResetDraft);
+  document.getElementById('reset-draft-btn-bottom').addEventListener('click', confirmAndResetDraft);
 
   loadDraft();
   requestAnimationFrame(() => {
