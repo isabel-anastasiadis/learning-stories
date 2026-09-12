@@ -250,6 +250,7 @@
       tokenExpiresAt: tokenExpiresAt,
       fileId: fileConnected ? connectedFileId : '',
       fileName: fileConnected ? filePillNameEl.textContent : '',
+      lastKnownRevision: lastKnownRevision,
       lastPulled: pullStatusEl.textContent,
       lastPushed: pushStatusEl.textContent,
       dirty: dirtySinceLastPush
@@ -263,6 +264,7 @@
   let signedIn = false;
   let fileConnected = false;
   let connectedFileId = null;
+  let lastKnownRevision = 0;
   let dirtySinceLastPush = false;
 
   function updateDirtyBannerVisibility() {
@@ -382,24 +384,119 @@
     updateDirtyBannerVisibility();
   }
 
-  function doPush() {
-    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
-    // STAGE 4: real push — write the settings JSON to the sheet's A1, check
-    // the shared revision marker in B1 first and warn if it moved
-    pushStatusEl.textContent = 'Last pushed: just now (mocked — real write is stage 4)';
-    clearDirty();
-    persistSyncState();
+  async function sheetsFetch(method, range, body) {
+    let url = `https://sheets.googleapis.com/v4/spreadsheets/${connectedFileId}/values/${range}`;
+    if (method === 'PUT') url += '?valueInputOption=RAW';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        signOut();
+        throw new Error('Your session expired — please sign in again.');
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status})`);
+    }
+    return data;
   }
 
-  function doPull() {
+  // Everything that syncs, bundled as one JSON blob in A1. The API key is
+  // base64'd — a courtesy against a casual glance at the sheet, not real
+  // security (anyone with edit access to the file can decode it just as
+  // easily as reading it plain).
+  function buildSettingsPayload() {
+    const apiKey = getSavedApiKey();
+    return {
+      savedNames: savedNames,
+      aiEnabled: aiEnabledToggle.checked,
+      aiModel: modelSelect.value,
+      aiContextTerms: contextTermsInput.value,
+      aiTidyPrompt: tidyPromptInput.value,
+      claudeApiKeyB64: apiKey ? btoa(apiKey) : ''
+    };
+  }
+
+  function applySettingsPayload(payload) {
+    savedNames = Array.isArray(payload.savedNames) ? payload.savedNames : [];
+    sortNames();
+    saveSavedNamesLocally();
+    renderSavedNamesSettings();
+
+    aiEnabledToggle.checked = !!payload.aiEnabled;
+    safeSet(AI_ENABLED_KEY, aiEnabledToggle.checked ? 'true' : 'false');
+    modelSelect.value = payload.aiModel || 'claude-sonnet-5';
+    safeSet(AI_MODEL_KEY, modelSelect.value);
+    contextTermsInput.value = payload.aiContextTerms || '';
+    safeSet(AI_CONTEXT_TERMS_KEY, contextTermsInput.value);
+    tidyPromptInput.value = payload.aiTidyPrompt || DEFAULT_TIDY_PROMPT;
+    safeSet(AI_PROMPT_KEY, tidyPromptInput.value);
+    updateAiSubSettingsVisibility();
+
+    try {
+      if (payload.claudeApiKeyB64) safeSet(API_KEY_STORAGE_KEY, atob(payload.claudeApiKeyB64));
+      else localStorage.removeItem(API_KEY_STORAGE_KEY);
+    } catch (e) { /* malformed key or storage unavailable — leave whatever's already there */ }
+    renderApiKeyStatus();
+  }
+
+  async function pushToFile(expectedRevision) {
+    const newRevision = expectedRevision + 1;
+    await sheetsFetch('PUT', 'A1:B1', { values: [[ JSON.stringify(buildSettingsPayload()), String(newRevision) ]] });
+    lastKnownRevision = newRevision;
+  }
+
+  async function pullFromFile() {
+    const data = await sheetsFetch('GET', 'A1:B1');
+    const rawJson = data.values?.[0]?.[0];
+    const rawRevision = data.values?.[0]?.[1];
+    if (!rawJson) throw new Error("This file doesn't have any shared settings in it yet.");
+    let payload;
+    try { payload = JSON.parse(rawJson); }
+    catch (e) { throw new Error("The file's content doesn't look like valid settings data."); }
+    applySettingsPayload(payload);
+    lastKnownRevision = parseInt(rawRevision, 10) || 0;
+  }
+
+  async function doPush() {
     if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
-    // STAGE 4: real pull — read A1 and repopulate the fields from it
+    const prevText = pushStatusEl.textContent;
+    pushStatusEl.textContent = 'Pushing…';
+    try {
+      const b1Data = await sheetsFetch('GET', 'B1');
+      const sharedRevision = parseInt(b1Data.values?.[0]?.[0], 10) || 0;
+      if (sharedRevision !== lastKnownRevision) {
+        const overwrite = confirm('Shared settings have changed since you last synced. Overwrite anyway? (Cancel to pull the latest first instead.)');
+        if (!overwrite) { pushStatusEl.textContent = prevText; return; }
+      }
+      await pushToFile(sharedRevision);
+      pushStatusEl.textContent = 'Last pushed: ' + new Date().toLocaleTimeString();
+      clearDirty();
+      persistSyncState();
+    } catch (err) {
+      pushStatusEl.textContent = 'Last pushed: failed at ' + new Date().toLocaleTimeString();
+      alert("Couldn't push: " + err.message);
+    }
+  }
+
+  async function doPull() {
+    if (!accessToken || !fileConnected) { alert('Sign in and choose a file first.'); return; }
     if (dirtySinceLastPush && !confirm('You have local changes that haven\'t synced yet. Pulling will overwrite them with what\'s in the shared file — continue?')) {
       return;
     }
-    pullStatusEl.textContent = 'Last pulled: just now (mocked — real read is stage 4)';
-    clearDirty();
-    persistSyncState();
+    const prevText = pullStatusEl.textContent;
+    pullStatusEl.textContent = 'Pulling…';
+    try {
+      await pullFromFile();
+      pullStatusEl.textContent = 'Last pulled: ' + new Date().toLocaleTimeString();
+      clearDirty();
+      persistSyncState();
+    } catch (err) {
+      pullStatusEl.textContent = prevText;
+      alert("Couldn't pull: " + err.message);
+    }
   }
 
   async function createSheetInFolder(folderId) {
@@ -418,14 +515,19 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || `Request failed (${res.status})`);
 
-      // Real file, genuinely created just now — both directions are
-      // guaranteed in sync at this instant (nothing pushed/pulled YET,
-      // that's stage 4, but there's also nothing to be out of sync with).
       connectFile(data.id, data.name);
-      pushStatusEl.textContent = 'Last pushed: just now (in sync — initial write comes in stage 4)';
-      pullStatusEl.textContent = 'Last pulled: just now (in sync — nothing to pull yet)';
-      clearDirty();
-      persistSyncState();
+      lastKnownRevision = 0;
+      pushStatusEl.textContent = 'Writing initial settings…';
+      try {
+        await pushToFile(0);
+        pushStatusEl.textContent = 'Last pushed: ' + new Date().toLocaleTimeString() + ' (initial)';
+        pullStatusEl.textContent = 'Last pulled: ' + new Date().toLocaleTimeString() + ' (in sync — nothing to pull yet)';
+        clearDirty();
+        persistSyncState();
+      } catch (err) {
+        pushStatusEl.textContent = 'Last pushed: failed';
+        alert('Created the file, but the initial write failed: ' + err.message);
+      }
     } catch (err) {
       alert("Couldn't create the sheet: " + err.message);
       createFileBtn.disabled = false;
@@ -471,16 +573,21 @@
       .setOAuthToken(accessToken)
       .setDeveloperKey(API_KEY)
       .setAppId(PROJECT_NUMBER)
-      .setCallback((data) => {
+      .setCallback(async (data) => {
         if (data.action !== google.picker.Action.PICKED) return;
         const file = data.docs[0];
         connectFile(file.id, file.name);
-        // Real pick, but the actual content read is stage 4 — so this
-        // "pulled" is provisional until that lands; local isn't overwritten yet.
-        pullStatusEl.textContent = 'Last pulled: just now (chosen — real read is stage 4)';
-        pushStatusEl.textContent = 'Last pushed: just now (in sync — matches what was just chosen)';
-        clearDirty();
-        persistSyncState();
+        pullStatusEl.textContent = 'Pulling…';
+        try {
+          await pullFromFile();
+          pullStatusEl.textContent = 'Last pulled: ' + new Date().toLocaleTimeString();
+          pushStatusEl.textContent = 'Last pushed: ' + new Date().toLocaleTimeString() + ' (in sync — matches what was just pulled)';
+          clearDirty();
+          persistSyncState();
+        } catch (err) {
+          pullStatusEl.textContent = 'Last pulled: failed';
+          alert("Connected the file, but couldn't read its settings: " + err.message);
+        }
       })
       .build();
     showPicker(picker);
@@ -489,6 +596,7 @@
   document.getElementById('unpick-file-btn').addEventListener('click', () => {
     fileConnected = false;
     connectedFileId = null;
+    lastKnownRevision = 0;
     filePillWrap.style.display = 'none';
     createFileBtn.disabled = false;
     chooseFileBtn.disabled = false;
@@ -533,6 +641,7 @@
       if (saved.fileId) {
         fileConnected = true;
         connectedFileId = saved.fileId;
+        lastKnownRevision = saved.lastKnownRevision || 0;
         filePillWrap.style.display = '';
         filePillNameEl.textContent = saved.fileName;
         createFileBtn.disabled = true;
@@ -571,8 +680,11 @@
   const addSavedNameBtn = document.getElementById('add-saved-name-btn');
   const savedNamesChipsEl = document.getElementById('saved-names-chips');
 
-  function persistSavedNames() {
+  function saveSavedNamesLocally() {
     try { localStorage.setItem(SAVED_NAMES_KEY, JSON.stringify(savedNames)); } catch (e) { /* ignore */ }
+  }
+  function persistSavedNames() {
+    saveSavedNamesLocally();
     markDirty();
   }
 
