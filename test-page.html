@@ -239,6 +239,12 @@
   <div class="field" style="margin-top: 20px;">
     <label for="colour-scheme">Colour scheme</label>
     <select id="colour-scheme" style="width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px 13px; font-size: 16px; font-family: inherit; background: var(--card); color: var(--ink);"></select>
+    <div id="theme-preview" style="margin-top: 10px; width: 130px; aspect-ratio: 8.27 / 11.69; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; box-sizing: border-box; display: flex; flex-direction: column;">
+      <div id="preview-box" style="flex: 1; border-radius: 6px; padding: 5px; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;">
+        <div id="preview-photos" style="display: flex; gap: 2px; flex-wrap: wrap;"></div>
+      </div>
+      <div id="preview-stickers" style="display: flex; gap: 2px; margin-top: 4px; height: 14px;"></div>
+    </div>
   </div>
 
   <label class="toggle-label" style="margin-top: 20px; margin-bottom: 12px;">
@@ -576,6 +582,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       photoGrid.appendChild(thumb);
     });
     saveDraftPhotos();
+    renderThemePreview();
   }
 
   function handlePhotoFiles(inputEl) {
@@ -705,6 +712,37 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     schemeSelectEl.appendChild(opt);
   });
 
+  // --- Live theme preview: a rough approximation, not a pixel-accurate
+  // render — just enough to see the box colour, real goal-sticker colours,
+  // and small real photo thumbnails at a glance before generating ---
+  function renderThemePreview() {
+    const scheme = PPTX_SCHEMES[schemeSelectEl.value];
+    document.getElementById('preview-box').style.background = '#' + scheme.box;
+
+    const photosPreviewEl = document.getElementById('preview-photos');
+    photosPreviewEl.innerHTML = '';
+    photos.slice(0, 6).forEach(dataUrl => {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.cssText = 'width: 24px; height: 18px; object-fit: cover; border-radius: 2px; border: 1px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.3);';
+      photosPreviewEl.appendChild(img);
+    });
+
+    const stickersPreviewEl = document.getElementById('preview-stickers');
+    stickersPreviewEl.innerHTML = '';
+    selectedGoalIds.forEach(id => {
+      const g = WHARIKI_GOALS.find(x => x.id === id);
+      const gc = PPTX_GOAL_COLORS[g.strand];
+      const chip = document.createElement('div');
+      chip.style.cssText = `flex: 1; min-width: 0; background: ${'#' + gc.fill}; border-radius: 2px; overflow: hidden;`;
+      const stripe = document.createElement('div');
+      stripe.style.cssText = `background: ${'#' + gc.stripe}; height: 5px;`;
+      chip.appendChild(stripe);
+      stickersPreviewEl.appendChild(chip);
+    });
+  }
+  schemeSelectEl.addEventListener('change', renderThemePreview);
+
   const selectedGoalIds = [];
   const goalResultsEl = document.getElementById('goal-results');
   const goalChipsEl = document.getElementById('goal-chips');
@@ -789,6 +827,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       goalChipsEl.appendChild(chip);
     });
     saveDraftFields();
+    renderThemePreview();
   }
 
   function loadImageDims(dataUrl) {
@@ -1236,6 +1275,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   document.getElementById('reset-draft-btn-bottom').addEventListener('click', confirmAndResetDraft);
 
   loadDraft();
+  renderThemePreview();
   requestAnimationFrame(() => {
     ['notice', 'learning', 'extend'].forEach(id => autoGrowTextarea(document.getElementById(id)));
   });
