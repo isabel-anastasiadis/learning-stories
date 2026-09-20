@@ -6,8 +6,7 @@
 <title>Learning Story</title>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <style>
   .brand-row { display: flex; justify-content: space-between; align-items: center; }
   .brand {
@@ -237,6 +236,20 @@
     <input type="text" id="title" placeholder="e.g. Building the tallest tower">
   </div>
 
+  <div class="field" style="margin-top: 20px;">
+    <label for="colour-scheme">Colour scheme</label>
+    <select id="colour-scheme" style="width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px 13px; font-size: 16px; font-family: inherit; background: var(--card); color: var(--ink);"></select>
+    <div id="theme-preview" style="margin-top: 10px; width: 190px; aspect-ratio: 8.27 / 11.69; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px; box-sizing: border-box; display: flex; flex-direction: column;">
+      <div id="preview-meta" style="font-size: 5px; font-style: italic; font-weight: 700; text-align: right; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+      <div id="preview-title" style="font-size: 9px; font-weight: 700; margin: 3px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+      <div id="preview-box" style="flex: 1; border-radius: 6px; padding: 5px; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;">
+        <div id="preview-photos" style="display: flex; gap: 2px; flex-wrap: wrap;"></div>
+        <div id="preview-content" style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; overflow: hidden;"></div>
+      </div>
+      <div id="preview-stickers" style="display: flex; gap: 2px; margin-top: 4px; height: 14px;"></div>
+    </div>
+  </div>
+
   <label class="toggle-label" style="margin-top: 20px; margin-bottom: 12px;">
     <input type="checkbox" id="include-title" checked>
     <span>Include title</span>
@@ -249,7 +262,7 @@
     <input type="checkbox" id="include-goal-outcomes">
     <span>Include the goal outcomes in the Recognise section</span>
   </label>
-  <button class="generate-btn" id="generate-btn">📄 Create Word Document</button>
+  <button class="generate-btn" id="generate-btn">📄 Create PowerPoint</button>
   <div class="status" id="status"></div>
   <button type="button" class="secondary-btn secondary-btn-lg full-width-btn" id="reset-draft-btn-bottom" style="margin-top: 0;">🔄 Reset</button>
 
@@ -320,6 +333,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   function syncSelectedNames() {
     childrenNamesHidden.value = selectedNames.join(', ');
     saveDraftFields();
+    if (typeof renderThemePreview === 'function') renderThemePreview();
   }
 
   function renderSelectedNameChips() {
@@ -572,6 +586,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       photoGrid.appendChild(thumb);
     });
     saveDraftPhotos();
+    renderThemePreview();
   }
 
   function handlePhotoFiles(inputEl) {
@@ -599,63 +614,183 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   const WHARIKI_GOALS = [
     { id: 'wb1', strand: 'Wellbeing', maori: 'Mana Atua', goal: 1, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
       text: 'Children experience an environment where their health is promoted.',
+      shortText: 'Their health is promoted.',
       outcome: 'Increasingly capable of keeping themselves healthy and caring for themselves | te oranga nui' },
     { id: 'wb2', strand: 'Wellbeing', maori: 'Mana Atua', goal: 2, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
       text: 'Children experience an environment where their emotional wellbeing is nurtured.',
+      shortText: 'Their emotional wellbeing is nurtured.',
       outcome: 'Increasingly capable of managing themselves and expressing their feelings and needs | te whakahua whakaaro' },
     { id: 'wb3', strand: 'Wellbeing', maori: 'Mana Atua', goal: 3, colorFill: 'FCEBEB', colorBorder: 'E24B4A', colorText: 'A32D2D',
       text: 'Children experience an environment where they are kept safe from harm.',
+      shortText: 'They are kept safe from harm.',
       outcome: 'Increasingly capable of keeping themselves and others safe from harm | te noho haumaru' },
 
     { id: 'bl1', strand: 'Belonging', maori: 'Mana Whenua', goal: 1, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
       text: 'Children and their families experience an environment where connecting links with the family and the wider world are affirmed and extended.',
+      shortText: 'Links with family and the wider world are affirmed and extended.',
       outcome: 'Increasingly capable of making connections between people, places and things in their world | te waihanga hononga' },
     { id: 'bl2', strand: 'Belonging', maori: 'Mana Whenua', goal: 2, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
       text: 'Children and their families experience an environment where they know that they have a place.',
+      shortText: 'They know that they have a place.',
       outcome: 'Increasingly capable of taking part in caring for this place | te manaaki i te taiao' },
     { id: 'bl3', strand: 'Belonging', maori: 'Mana Whenua', goal: 3, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
       text: 'Children and their families experience an environment where they feel comfortable with the routines, customs and regular events.',
+      shortText: 'They feel comfortable with the routines, customs and regular events.',
       outcome: 'Increasingly capable of understanding how things work here and adapting to change | te mārama ki te āhua o ngā whakahaere me te mōhio ki te panoni' },
     { id: 'bl4', strand: 'Belonging', maori: 'Mana Whenua', goal: 4, colorFill: 'FAECE7', colorBorder: 'D85A30', colorText: '993C1D',
       text: 'Children and their families experience an environment where they know the limits and boundaries of acceptable behaviour.',
+      shortText: 'They know the limits and boundaries of acceptable behaviour.',
       outcome: 'Increasingly capable of showing respect for kaupapa, rules and the rights of others | te mahi whakaute' },
 
     { id: 'co1', strand: 'Contribution', maori: 'Mana Tangata', goal: 1, colorFill: 'FAEEDA', colorBorder: 'EF9F27', colorText: '854F0B',
       text: 'Children experience an environment where there are equitable opportunities for learning, irrespective of gender, ability, age, ethnicity or background.',
+      shortText: 'Equitable opportunities for learning exist, irrespective of gender, ability, age, ethnicity or background.',
       outcome: 'Increasingly capable of treating others fairly and including them in play | te ngākau makuru' },
     { id: 'co2', strand: 'Contribution', maori: 'Mana Tangata', goal: 2, colorFill: 'FAEEDA', colorBorder: 'EF9F27', colorText: '854F0B',
       text: 'Children experience an environment where they are affirmed as individuals.',
+      shortText: 'They are affirmed as individuals.',
       outcome: 'Increasingly capable of recognising and appreciating their own ability to learn | te rangatiratanga' },
     { id: 'co3', strand: 'Contribution', maori: 'Mana Tangata', goal: 3, colorFill: 'FAEEDA', colorBorder: 'EF9F27', colorText: '854F0B',
       text: 'Children experience an environment where they are encouraged to learn with and alongside others.',
+      shortText: 'They are encouraged to learn with and alongside others.',
       outcome: 'Increasingly capable of using a range of strategies and skills to play and learn with others | te ngākau aroha' },
 
     { id: 'cm1', strand: 'Communication', maori: 'Mana Reo', goal: 1, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
       text: 'Children experience an environment where they develop non-verbal communication skills for a range of purposes.',
+      shortText: 'They develop non-verbal communication skills for a range of purposes.',
       outcome: 'Increasingly capable of using gesture and movement to express themselves | he kōrero ā-tinana' },
     { id: 'cm2', strand: 'Communication', maori: 'Mana Reo', goal: 2, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
       text: 'Children experience an environment where they develop verbal communication skills for a range of purposes.',
+      shortText: 'They develop verbal communication skills for a range of purposes.',
       outcome: 'Increasingly capable of understanding oral language and using it for a range of purposes | he kōrero ā-waha' },
     { id: 'cm3', strand: 'Communication', maori: 'Mana Reo', goal: 3, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
       text: 'Children experience an environment where they experience the stories and symbols of their own and other cultures.',
+      shortText: 'They experience the stories and symbols of their own and other cultures.',
       outcome: 'Increasingly capable of enjoying stories, recognising print symbols, or recognising mathematical symbols and concepts | he kōrero paki / he kōrero tuhituhi / he kōrero pāngarau' },
     { id: 'cm4', strand: 'Communication', maori: 'Mana Reo', goal: 4, colorFill: 'EAF3DE', colorBorder: '639922', colorText: '3B6D11',
       text: 'Children experience an environment where they discover different ways to be creative and expressive.',
+      shortText: 'They discover different ways to be creative and expressive.',
       outcome: 'Increasingly capable of expressing their feelings and ideas using a wide range of materials and modes | he kōrero auaha' },
 
     { id: 'ex1', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 1, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
       text: 'Children experience an environment where their play is valued as meaningful learning and the importance of spontaneous play is recognised.',
+      shortText: 'Their play is valued as meaningful learning, and spontaneous play is recognised.',
       outcome: 'Increasingly capable of playing, imagining, inventing and experimenting | te whakaaro me te tūhurahura i te pūtaiao' },
     { id: 'ex2', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 2, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
       text: 'Children experience an environment where they gain confidence in and control of their bodies.',
+      shortText: 'They gain confidence in and control of their bodies.',
       outcome: 'Increasingly capable of moving confidently and challenging themselves physically | te wero ā-tinana' },
     { id: 'ex3', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 3, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
       text: 'Children experience an environment where they learn strategies for active exploration, thinking and reasoning.',
+      shortText: 'They learn strategies for active exploration, thinking and reasoning.',
       outcome: 'Increasingly capable of using a range of strategies for reasoning and problem solving | te hīraurau hopanga' },
     { id: 'ex4', strand: 'Exploration', maori: 'Mana Aotūroa', goal: 4, colorFill: 'E6F1FB', colorBorder: '378ADD', colorText: '185FA5',
       text: 'Children experience an environment where they develop working theories for making sense of the natural, social, physical and material worlds.',
+      shortText: 'They develop working theories for making sense of the natural, social, physical and material worlds.',
       outcome: 'Increasingly capable of making sense of their worlds by generating and refining working theories | te rangahau me te mātauranga' }
   ];
+
+  // --- pptx colour schemes ---
+  const PPTX_SCHEMES = {
+    'Green':              { box: '5AB287', title: '12A05A', pill: '2C7D56' },
+    'Leaf green':         { box: 'B4E386', title: '4E8A18', pill: '3A6610' },
+    'Cornflower':         { box: '7BA9ED', title: '2B62C4', pill: '1F4A96' },
+    'Sky':                { box: '8AE3EB', title: '0F8C9C', pill: '0A6673' },
+    'Grey-blue':          { box: 'AED3E8', title: '2276AA', pill: '1A5E8C' },
+    'Lilac':              { box: 'C9BAE8', title: '7A4AC4', pill: '5E2E85' },
+    'Blossom pink':       { box: 'F2A0BE', title: 'E0447E', pill: '9C2050' },
+    'Pale pink':          { box: 'F5DCE4', title: 'D2417A', pill: '9C2050' },
+    'Red':                { box: 'F59090', title: 'D13A2E', pill: '9C2318' },
+    'Warm yellow-orange': { box: 'FFBD70', title: 'C4601A', pill: '9C3E10' },
+    'Yellow':             { box: 'F5ED90', title: 'A5820A', pill: '6E5605' }
+  };
+  const PPTX_GOAL_COLORS = {
+    Wellbeing: { stripe: 'F84D3B', fill: 'F7D3CE' }, Belonging: { stripe: 'F38935', fill: 'F9DCC6' },
+    Contribution: { stripe: 'F0B41B', fill: 'FAEBBF' }, Communication: { stripe: '3AC76D', fill: 'CFE8D8' },
+    Exploration: { stripe: '3FA0E0', fill: 'CDE1F1' }
+  };
+  const schemeSelectEl = document.getElementById('colour-scheme');
+  Object.keys(PPTX_SCHEMES).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    schemeSelectEl.appendChild(opt);
+  });
+
+  // --- Live theme preview: a rough approximation, not a pixel-accurate
+  // render — just enough to see the box colour, real goal-sticker colours,
+  // and small real photo thumbnails at a glance before generating ---
+  function renderThemePreview() {
+    const scheme = PPTX_SCHEMES[schemeSelectEl.value];
+    document.getElementById('preview-box').style.background = '#' + scheme.box;
+
+    const metaEl = document.getElementById('preview-meta');
+    const observerVal = document.getElementById('observer').value.trim();
+    const namesVal = document.getElementById('children-names').value.trim();
+    metaEl.style.color = '#' + scheme.pill;
+    metaEl.innerHTML = '';
+    const line1 = document.createElement('div');
+    line1.textContent = (observerVal ? `Observed by: ${observerVal}` : '') + (dateInput.value ? '  •  ' + formatDisplayDate(dateInput.value) : '');
+    const line2 = document.createElement('div');
+    line2.textContent = namesVal ? `Tamariki: ${namesVal}` : '';
+    metaEl.appendChild(line1);
+    metaEl.appendChild(line2);
+
+    const titleEl = document.getElementById('preview-title');
+    titleEl.style.color = '#' + scheme.title;
+    const includeTitleVal = document.getElementById('include-title').checked;
+    // Non-breaking space (not empty) when title is excluded — keeps its line
+    // reserving the same space rather than collapsing, matching the real
+    // pptx behaviour so someone can still write the title in by hand later.
+    titleEl.textContent = includeTitleVal ? (getEffectiveTitle() || 'Untitled story') : '\u00A0';
+
+    const photosPreviewEl = document.getElementById('preview-photos');
+    photosPreviewEl.innerHTML = '';
+    photos.slice(0, 6).forEach(dataUrl => {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.cssText = 'width: 24px; height: 18px; object-fit: cover; border-radius: 2px; border: 1px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.3);';
+      photosPreviewEl.appendChild(img);
+    });
+
+    const includeHeadingsVal = document.getElementById('include-headings').checked;
+    const contentPreviewEl = document.getElementById('preview-content');
+    contentPreviewEl.innerHTML = '';
+    [
+      ['NOTICE', document.getElementById('notice').value.trim()],
+      ['RECOGNISE', document.getElementById('learning').value.trim()],
+      ['RESPOND', document.getElementById('extend').value.trim()]
+    ].forEach(([label, text]) => {
+      if (!includeHeadingsVal && !text) return;
+      const section = document.createElement('div');
+      if (includeHeadingsVal) {
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        labelEl.style.cssText = `font-size: 5px; font-weight: 700; background: #fff; color: #${scheme.pill}; padding: 0 2px; display: inline-block; margin-bottom: 1px;`;
+        section.appendChild(labelEl);
+      }
+      if (text) {
+        const bodyEl = document.createElement('div');
+        bodyEl.textContent = text;
+        bodyEl.style.cssText = 'font-size: 5px; color: #000; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        section.appendChild(bodyEl);
+      }
+      contentPreviewEl.appendChild(section);
+    });
+
+    const stickersPreviewEl = document.getElementById('preview-stickers');
+    stickersPreviewEl.innerHTML = '';
+    selectedGoalIds.forEach(id => {
+      const g = WHARIKI_GOALS.find(x => x.id === id);
+      const gc = PPTX_GOAL_COLORS[g.strand];
+      const chip = document.createElement('div');
+      chip.style.cssText = `flex: 1; min-width: 0; background: ${'#' + gc.fill}; border-radius: 2px; overflow: hidden;`;
+      const stripe = document.createElement('div');
+      stripe.style.cssText = `background: ${'#' + gc.stripe}; height: 5px;`;
+      chip.appendChild(stripe);
+      stickersPreviewEl.appendChild(chip);
+    });
+  }
+  schemeSelectEl.addEventListener('change', renderThemePreview);
 
   const selectedGoalIds = [];
   const goalResultsEl = document.getElementById('goal-results');
@@ -741,6 +876,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       goalChipsEl.appendChild(chip);
     });
     saveDraftFields();
+    renderThemePreview();
   }
 
   function loadImageDims(dataUrl) {
@@ -848,46 +984,169 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     return ext === 'jpg' ? 'jpeg' : ext;
   }
 
-  async function buildDocxBlob() {
-    const {
-      Document, Packer, Paragraph, TextRun, ImageRun,
-      HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType
-    } = window.docx;
+  // --- pptx generation: schemes, justified photo layout, goal stickers, shrink-to-fit content ---
+  const PPTX_TITLE_FONT = 'Caladea', PPTX_BODY_FONT = 'Carlito';
+  const PPTX_PAGE_W = 8.27, PPTX_PAGE_H = 11.69, PPTX_PAD = 0.25;
+  const PPTX_INNER_W = PPTX_PAGE_W - PPTX_PAD * 2;
+  const PPTX_DPI = 96;
 
-    const pxToEmu = 9525;
-    const CONTENT_WIDTH_TWIPS = 11906 - 720 * 2;
-    const contentWidthPx = Math.round(CONTENT_WIDTH_TWIPS / 1440 * 96);
+  function pptxAddMetadata(slide, opts, scheme) {
+    slide.addText(
+      [
+        { text: `Observed by: ${opts.observer}   •   ${opts.date}`, options: { align: 'right', breakLine: true } },
+        { text: `Tamariki: ${opts.names}`, options: { align: 'right' } }
+      ],
+      { x: PPTX_PAD, y: PPTX_PAD, w: PPTX_INNER_W, h: 0.5, italic: true, bold: true, fontSize: 11, color: scheme.pill, align: 'right', fontFace: PPTX_BODY_FONT, margin: 0, valign: 'top' }
+    );
+  }
 
-    // Builds a paragraph of side-by-side floating images (fixed pixel widths, given
-    // per-image) using "break text" (top/bottom) wrap — text stops above and resumes
-    // below rather than hugging the sides. Since each item is a flat image, Word/Docs
-    // pushes a whole one to the next page rather than splitting it mid-content.
-    function buildFloatingImageRow(items, gapPx) {
-      let cumulativeOffsetEmu = 0;
-      const runs = items.map(({ bytes, type, w, h }) => {
-        const run = new ImageRun({
-          data: bytes,
-          type,
-          transformation: { width: w, height: h },
-          floating: {
-            horizontalPosition: { relative: HorizontalPositionRelativeFrom.COLUMN, offset: cumulativeOffsetEmu },
-            verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: 0 },
-            wrap: { type: TextWrappingType.TOP_AND_BOTTOM },
-            margins: { top: 45000, bottom: 90000, left: 30000, right: 30000 }
-          }
-        });
-        cumulativeOffsetEmu += w * pxToEmu + gapPx * pxToEmu;
-        return run;
+  function pptxAddFooterStickers(pres, slide, goals) {
+    const footerH = 1.05, footerY = PPTX_PAGE_H - PPTX_PAD - footerH, stripH = 0.4, cardGap = 0.1;
+    const n = goals.length, useShort = n >= 5;
+    const cardWEven = (PPTX_INNER_W - cardGap * (n - 1)) / n;
+    const cardW = Math.min(cardWEven, PPTX_INNER_W / 2);
+    const cardInnerPad = 0.09, descTopGap = 0.04, cardRadius = 0.104, stripRadius = 0.104, maskOverlap = 0.02;
+    const maskTop = footerY + stripH - stripRadius - maskOverlap;
+    const maskBottom = footerY + footerH - cardRadius;
+    const maskH = maskBottom - maskTop;
+    const textTopInset = stripRadius + maskOverlap + descTopGap;
+    const descAreaH = maskH - textTopInset - cardInnerPad;
+    const textW = cardW - cardInnerPad * 2;
+    const baseFontPt = 8.5, charsPerInch = 15.5, lineHeightIn = 0.145;
+    const charsPerLine = textW * charsPerInch;
+    const descFontSize = Math.min(...goals.map(goal => {
+      const t = useShort ? goal.shortText : goal.text;
+      const linesNeeded = Math.ceil(t.length / charsPerLine);
+      const neededH = linesNeeded * lineHeightIn;
+      return neededH > descAreaH ? Math.max(6.5, +(baseFontPt * (descAreaH / neededH)).toFixed(1)) : baseFontPt;
+    }));
+    const baseLabelPt = 9.5, labelCharsPerInch = 11.5;
+    const fourCardW = Math.min((PPTX_INNER_W - cardGap * 3) / 4, PPTX_INNER_W / 2);
+    const fourTextW = fourCardW - cardInnerPad * 2;
+    const capSize = Math.min(...['Wellbeing · Goal 2', 'Belonging · Goal 1', 'Contribution · Goal 1', 'Communication · Goal 2'].map(label => {
+      const neededW = label.length / labelCharsPerInch;
+      return Math.min(14, Math.max(7, +(baseLabelPt * (fourTextW / neededW)).toFixed(1)));
+    }));
+    const labelFontSize = Math.min(capSize, ...goals.map(goal => {
+      const label = `${goal.strand} · Goal ${goal.goal}`;
+      const neededW = label.length / labelCharsPerInch;
+      return Math.min(14, Math.max(7, +(baseLabelPt * (textW / neededW)).toFixed(1)));
+    }));
+
+    goals.forEach((goal, i) => {
+      const x = PPTX_PAD + i * (cardW + cardGap);
+      const gc = PPTX_GOAL_COLORS[goal.strand];
+      const displayText = useShort ? goal.shortText : goal.text;
+      slide.addShape(pres.ShapeType.roundRect, { x, y: footerY, w: cardW, h: footerH, rectRadius: cardRadius, fill: { color: gc.fill }, line: { type: 'none' } });
+      slide.addShape(pres.ShapeType.roundRect, { x, y: footerY, w: cardW, h: stripH, rectRadius: stripRadius, fill: { color: gc.stripe }, line: { type: 'none' } });
+      const labelTopInset = -0.008386 * labelFontSize + 0.126667 + 0.012;
+      slide.addText(`${goal.strand} · Goal ${goal.goal}`, {
+        x: x + cardInnerPad, y: footerY + labelTopInset, w: cardW - cardInnerPad * 2, h: stripH - labelTopInset,
+        bold: true, fontSize: labelFontSize, color: '111111', fontFace: PPTX_BODY_FONT, margin: 0, valign: 'top'
       });
-      return new Paragraph({ children: runs, spacing: { after: 100 } });
-    }
+      slide.addText(displayText, {
+        shape: pres.ShapeType.rect, fill: { color: gc.fill },
+        x, y: maskTop, w: cardW, h: maskH,
+        fontSize: descFontSize, color: '333333', fontFace: PPTX_BODY_FONT, lineSpacingMultiple: 1.1,
+        valign: 'top', margin: [cardInnerPad * 72, textTopInset * 72, cardInnerPad * 72, cardInnerPad * 72]
+      });
+    });
+  }
 
-    function chunk(arr, size) {
-      const out = [];
-      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-      return out;
+  async function pptxComputePhotoLayout(aspectRatios, contentWidthIn, maxHeightIn) {
+    const justifiedLayout = (await import('https://cdn.jsdelivr.net/npm/better-justified-layout@1.0.0/dist/better-justified-layout.esm.min.js')).default;
+    const containerWidthPx = contentWidthIn * PPTX_DPI;
+    const maxHeightPx = maxHeightIn * PPTX_DPI;
+    let lo = 40, hi = 400, best = null;
+    for (let i = 0; i < 20; i++) {
+      const mid = (lo + hi) / 2;
+      const geo = justifiedLayout(aspectRatios, { containerWidth: containerWidthPx, targetRowHeight: mid, boxSpacing: 8, containerPadding: 0 });
+      if (geo.containerHeight <= maxHeightPx) { best = geo; lo = mid; } else { hi = mid; }
     }
+    return { heightIn: best.containerHeight / PPTX_DPI, boxes: best.boxes.map(b => ({ x: b.left / PPTX_DPI, y: b.top / PPTX_DPI, w: b.width / PPTX_DPI, h: b.height / PPTX_DPI })) };
+  }
 
+  function pptxAddContent(slide, opts, scheme, contentX, contentW, textBoxY, textBoxH, includeHeadings) {
+    const runs = [];
+    function addSection(label, body, first) {
+      if (includeHeadings) {
+        runs.push({ text: (first ? '' : '\n\n') + ` ${label} `, options: { bold: true, color: scheme.pill, highlight: 'FFFFFF', breakLine: true } });
+      } else if (!first) {
+        runs.push({ text: '\n\n', options: { breakLine: false } });
+      }
+      runs.push({ text: body, options: { bold: false, color: '000000', breakLine: false } });
+    }
+    addSection('NOTICE', opts.notice, true);
+    addSection('RECOGNISE', opts.recognise, false);
+    addSection('RESPOND', opts.respond, false);
+    const baseFontPt = 13, baseLineHeightIn = 0.30, charsPerInchAt13 = 12.3;
+    const charsPerLine = contentW * charsPerInchAt13;
+    const bodyLines = Math.ceil(opts.notice.length / charsPerLine) + Math.ceil(opts.recognise.length / charsPerLine) + Math.ceil(opts.respond.length / charsPerLine);
+    const totalLines = bodyLines + (includeHeadings ? 5 : 2);
+    const neededHeightIn = totalLines * baseLineHeightIn;
+    const fontSize = neededHeightIn > textBoxH ? Math.max(9, Math.floor(baseFontPt * (textBoxH / neededHeightIn))) : baseFontPt;
+    slide.addText(runs, { x: contentX, y: textBoxY, w: contentW, h: textBoxH, fontSize, fontFace: PPTX_BODY_FONT, margin: 0, valign: 'top', lineSpacingMultiple: 1.25 });
+  }
+
+  async function pptxBuildSlide(pres, opts, scheme) {
+    const slide = pres.addSlide();
+    pptxAddMetadata(slide, opts, scheme);
+    const titleY = PPTX_PAD + 0.5, titleBoxH = 0.48;
+    // Non-breaking space (not an empty string) when title is excluded — an
+    // actually-empty text box behaves unpredictably across PowerPoint/Google
+    // Slides/LibreOffice (confirmed earlier with the overflow-page box), and
+    // this is the same workaround the original docx generation already used
+    // for this exact situation.
+    slide.addText(opts.includeTitle ? opts.title : '\u00A0', { x: PPTX_PAD, y: titleY, w: PPTX_INNER_W, h: titleBoxH, bold: true, fontSize: 30, color: scheme.title, fontFace: PPTX_TITLE_FONT, margin: 0, valign: 'top' });
+    const headerToBoxGap = PPTX_PAD / 2;
+    const boxY = titleY + titleBoxH + headerToBoxGap;
+    const footerH = 1.05, gap = 0.17;
+    const boxBottom = PPTX_PAGE_H - PPTX_PAD - footerH - gap;
+    const boxH = boxBottom - boxY;
+    slide.addShape(pres.ShapeType.roundRect, { x: PPTX_PAD, y: boxY, w: PPTX_INNER_W, h: boxH, rectRadius: 0.22, fill: { color: scheme.box }, line: { type: 'none' } });
+    const boxPad = PPTX_PAD;
+    const contentX = PPTX_PAD + boxPad;
+    const contentW = PPTX_INNER_W - boxPad * 2;
+    let cursorY = boxY + boxPad;
+    if (opts.photoDataUrls.length) {
+      const dims = await Promise.all(opts.photoDataUrls.map(loadImageDims));
+      const aspectRatios = dims.map(d => d.width / d.height);
+      const maxPhotoHeight = boxH / 2;
+      const layout = await pptxComputePhotoLayout(aspectRatios, contentW, maxPhotoHeight);
+      const matBorder = 0.115;
+      layout.boxes.forEach((b, i) => {
+        const frameX = contentX + b.x, frameY = cursorY + b.y;
+        slide.addShape(pres.ShapeType.rect, {
+          x: frameX, y: frameY, w: b.w, h: b.h, fill: { color: 'FFFFFF' }, line: { type: 'none' },
+          shadow: { type: 'outer', color: '0A3D26', opacity: 0.65, blur: 3.75, offset: 1.5, angle: 90 }
+        });
+        slide.addImage({ data: opts.photoDataUrls[i], x: frameX + matBorder, y: frameY + matBorder, w: b.w - matBorder * 2, h: b.h - matBorder * 2 });
+      });
+      cursorY += layout.heightIn + 0.2;
+    }
+    const textBoxY = cursorY;
+    const textBoxH = (boxY + boxH - boxPad) - textBoxY;
+    pptxAddContent(slide, opts, scheme, contentX, contentW, textBoxY, textBoxH, opts.includeHeadings);
+    if (opts.goals.length) pptxAddFooterStickers(pres, slide, opts.goals);
+  }
+
+  async function pptxBuildOverflowSlide(pres, opts, scheme) {
+    const slide = pres.addSlide();
+    pptxAddMetadata(slide, opts, scheme);
+    const boxY = PPTX_PAD + 0.5 + PPTX_PAD / 2;
+    const footerH = 1.05, gap = 0.17;
+    const boxBottom = PPTX_PAGE_H - PPTX_PAD - footerH - gap;
+    const boxH = boxBottom - boxY;
+    slide.addShape(pres.ShapeType.roundRect, { x: PPTX_PAD, y: boxY, w: PPTX_INNER_W, h: boxH, rectRadius: 0.22, fill: { color: scheme.box }, line: { type: 'none' } });
+    const boxPad = PPTX_PAD;
+    slide.addText('Add/move text here, or delete...', {
+      x: PPTX_PAD + boxPad, y: boxY + boxPad, w: PPTX_INNER_W - boxPad * 2, h: boxH - boxPad * 2,
+      fontFace: PPTX_BODY_FONT, fontSize: 13, color: '000000', margin: 0, valign: 'top'
+    });
+    if (opts.goals.length) pptxAddFooterStickers(pres, slide, opts.goals);
+  }
+
+  async function buildPptxBlob() {
     const title = getEffectiveTitle();
     const observer = document.getElementById('observer').value.trim();
     const dateStr = formatDisplayDate(dateInput.value);
@@ -895,203 +1154,28 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const notice = document.getElementById('notice').value.trim();
     const learning = document.getElementById('learning').value.trim();
     const extend = document.getElementById('extend').value.trim();
-
-    const HEADING_GREY = '808080';
-    const META_GREY = '595959';
-    const TITLE_SOFT_BLACK = '333333';
-    const BODY_INK = '1A1A1A';
-
-    function spacer() { return new Paragraph({ children: [], spacing: { after: 0 } }); }
-
     const includeTitle = document.getElementById('include-title').checked;
-    const children = [
-      new Paragraph({
-        children: [new TextRun({
-          text: includeTitle ? title : '\u00A0', font: 'Calibri', bold: true, size: 80, color: TITLE_SOFT_BLACK
-        })],
-        spacing: { after: 80 }
-      })
-    ];
-
-    // --- photos, floating side-by-side in rows with "break text" (top/bottom) wrap ---
-    if (photos.length) {
-      children.push(spacer());
-      const gapPx = 14;
-      const rows = chunk(photos, 3);
-      // when there's only one photo overall, give it much more room — otherwise
-      // the height cap (260px) can leave a portrait photo tiny even though
-      // there's plenty of width to spare
-      const maxHeightPx = photos.length === 1 ? 500 : 260;
-      for (const row of rows) {
-        const rowMaxWidthPx = (contentWidthPx - gapPx * (row.length - 1)) / row.length;
-        const items = [];
-        for (const dataUrl of row) {
-          const dims = await loadImageDims(dataUrl);
-          const scale = Math.min(rowMaxWidthPx / dims.width, maxHeightPx / dims.height, 1);
-          const w = Math.round(dims.width * scale);
-          const h = Math.round(dims.height * scale);
-          const bytes = await dataUrlToBytes(dataUrl);
-          items.push({ bytes, type: guessImageType(dataUrl), w, h });
-        }
-        children.push(buildFloatingImageRow(items, gapPx));
-      }
-    }
-
     const includeHeadings = document.getElementById('include-headings').checked;
-    const includeGoalOutcomes = document.getElementById('include-goal-outcomes').checked && selectedGoalIds.length > 0;
+    // NOTE: "include-goal-outcomes" has no effect in this pptx test page — the
+    // original docx flow listed goal outcomes as bullet points in Recognise;
+    // this pptx design doesn't have an equivalent spot for that yet, so the
+    // checkbox is left in place but currently ignored here.
+    const scheme = PPTX_SCHEMES[schemeSelectEl.value];
+    const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
 
-    // includeHeadings governs whether the NOTICE/RECOGNISE/RESPOND labels print
-    // AT ALL — unlike the old "empty headings" toggle, this hides labels even
-    // above sections that do have text, for people who want the exported doc
-    // to read as plain paragraphs with no framework showing. Body text (if
-    // any) always prints regardless; only the heading label is conditional.
-    function pushLabelledText(label, text, hasExtraContent) {
-      const hasContent = !!text || !!hasExtraContent;
-      if (!hasContent && !includeHeadings) return;
-      children.push(spacer());
-      if (includeHeadings) {
-        children.push(new Paragraph({
-          children: [new TextRun({
-            text: label, font: 'Calibri', bold: true, size: 32, color: HEADING_GREY,
-            allCaps: true, characterSpacing: 20
-          })],
-          spacing: { after: 60 }
-        }));
-      }
-      if (!text) return;
-      text.split(/\n/).forEach(line => {
-        children.push(new Paragraph({
-          children: [new TextRun({ text: line, font: 'Calibri', size: 28, color: BODY_INK })],
-          spacing: { after: 100 }
-        }));
-      });
-    }
+    const opts = {
+      title, observer, date: dateStr, names: childrenNames,
+      notice: notice || ' ', recognise: learning || ' ', respond: extend || ' ',
+      includeTitle, includeHeadings, goals, photoDataUrls: photos
+    };
 
-    pushLabelledText('Notice', notice);
-    // goal outcomes (if included) count as content for this section, so the
-    // heading shows even if the "learning" textarea itself is empty
-    pushLabelledText('Recognise', learning, includeGoalOutcomes);
+    const pres = new PptxGenJS();
+    pres.defineLayout({ name: 'A4_PORTRAIT', width: PPTX_PAGE_W, height: PPTX_PAGE_H });
+    pres.layout = 'A4_PORTRAIT';
+    await pptxBuildSlide(pres, opts, scheme);
+    await pptxBuildOverflowSlide(pres, opts, scheme);
 
-    // If included (via the checkbox) and any Whāriki goals are selected, list
-    // their learning outcomes as bullet points here — the footer stickers show
-    // which goals were selected, this is where the fuller detail lives
-    if (includeGoalOutcomes) {
-      const outcomeGoals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
-      outcomeGoals.forEach(g => {
-        children.push(new Paragraph({
-          children: [new TextRun({ text: '•  ' + g.outcome, font: 'Calibri', size: 28, color: BODY_INK })],
-          indent: { left: 220 },
-          spacing: { after: 80 }
-        }));
-      });
-    }
-    pushLabelledText('Respond', extend);
-
-    if (!selectedGoalIds.length && includeHeadings) {
-      children.push(spacer());
-      children.push(new Paragraph({
-        children: [new TextRun({
-          text: 'Whāriki goals', font: 'Calibri', bold: true, size: 32, color: HEADING_GREY,
-          allCaps: true, characterSpacing: 20
-        })],
-        spacing: { after: 120 }
-      }));
-    }
-
-    // --- Header: "Observed by / date / children" details, right-aligned so
-    // wrapped tamariki names cluster together on the right rather than
-    // spreading across the full width ---
-    const { Header, AlignmentType } = window.docx;
-
-    // Build "Observed by: X • date • With: names" with bold labels, italic
-    // throughout — segments joined with a plain italic bullet separator
-    const headerSegments = [];
-    if (observer) {
-      headerSegments.push([
-        new TextRun({ text: 'Observed by: ', bold: true, italics: true, font: 'Calibri', size: 24, color: META_GREY }),
-        new TextRun({ text: observer, italics: true, font: 'Calibri', size: 24, color: META_GREY })
-      ]);
-    }
-    headerSegments.push([new TextRun({ text: dateStr, italics: true, font: 'Calibri', size: 24, color: META_GREY })]);
-    if (childrenNames) {
-      headerSegments.push([
-        new TextRun({ text: 'With: ', bold: true, italics: true, font: 'Calibri', size: 24, color: META_GREY }),
-        new TextRun({ text: childrenNames, italics: true, font: 'Calibri', size: 24, color: META_GREY })
-      ]);
-    }
-    const headerRuns = [];
-    headerSegments.forEach((seg, i) => {
-      if (i > 0) headerRuns.push(new TextRun({ text: '   •   ', italics: true, font: 'Calibri', size: 24, color: META_GREY }));
-      headerRuns.push(...seg);
-    });
-
-    const header = new Header({
-      children: [
-        new Paragraph({ alignment: AlignmentType.RIGHT, children: headerRuns }),
-        // extra blank line so body text has some breathing room below the
-        // header on page 2+ (not just an issue right under the title on page 1)
-        new Paragraph({ children: [] })
-      ]
-    });
-
-    // --- Whāriki goals, as packed sticker images in the page footer ---
-    // Rendered as flat images so they: (a) can sit narrow and tight without
-    // fighting Word's table-width quirks, (b) never split mid-box across a page
-    // break. Living in a real footer means they always sit at the bottom of the
-    // page regardless of how much/little other content there is.
-    // Layout: 1 → single, 2 → two columns one row, 3 → three columns one row,
-    // 4 → two columns two rows, 5+ → wraps by 3. All stickers in a row are
-    // rendered at the SAME height (the tallest one needed in that row) so they
-    // line up cleanly and are easy to nudge into place afterwards.
-    let footer;
-    if (selectedGoalIds.length) {
-      const { Footer } = window.docx;
-      const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
-      const gapPx = 12;
-
-      let rows;
-      if (goals.length === 4) rows = [goals.slice(0, 2), goals.slice(2, 4)];
-      else if (goals.length <= 3) rows = [goals];
-      else rows = chunk(goals, 3);
-
-      const footerChildren = [];
-      for (const row of rows) {
-        // a lone sticker shouldn't stretch full width — size it like it were
-        // one of a two-up row, so it reads as "half width" rather than huge
-        const effectiveColumns = row.length === 1 ? 2 : row.length;
-        const stickerWidthPx = Math.floor((contentWidthPx - gapPx * (effectiveColumns - 1)) / effectiveColumns);
-
-        // measure each goal's natural height at this width first, so every
-        // sticker in the row can be drawn at the same (tallest) height
-        const naturalHeights = await Promise.all(row.map(g => measureStickerHeight(g, stickerWidthPx)));
-        const rowHeight = Math.max(...naturalHeights);
-
-        const items = [];
-        for (const g of row) {
-          const { dataUrl } = await renderGoalStickerImage(g, stickerWidthPx, rowHeight);
-          const bytes = await dataUrlToBytes(dataUrl);
-          items.push({ bytes, type: 'png', w: stickerWidthPx, h: rowHeight });
-        }
-        footerChildren.push(buildFloatingImageRow(items, gapPx));
-      }
-      footer = new Footer({ children: footerChildren });
-    }
-
-    const doc = new Document({
-      sections: [{
-        properties: {
-          page: {
-            size: { width: 11906, height: 16838 },
-            margin: { top: 720, bottom: 720, left: 720, right: 720, header: 425, footer: 142 }
-          }
-        },
-        headers: { default: header },
-        footers: footer ? { default: footer } : undefined,
-        children
-      }]
-    });
-
-    return Packer.toBlob(doc);
+    return pres.write({ outputType: 'blob' });
   }
 
   function getEffectiveTitle() {
@@ -1117,37 +1201,46 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     status.textContent = '';
 
     try {
-      const blob = await buildDocxBlob();
+      const blob = await buildPptxBlob();
 
       const observer = document.getElementById('observer').value.trim();
       const [fy, fm, fd] = dateInput.value.split('-').map(Number);
       const dateForFilename = new Date(fy, fm - 1, fd).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ');
       const safeTitle = title.replace(/[\\/:*?"<>|]/g, '');
-      const filename = `${safeTitle}${observer ? ' - ' + observer : ''} - ${dateForFilename}.docx`;
+      const filename = `${safeTitle}${observer ? ' - ' + observer : ''} - ${dateForFilename}.pptx`;
 
       // Try native share sheet first (best on iPhone)
-      const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const file = new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({ files: [file], title: title });
           status.textContent = 'Shared! Save it to Drive or Files.';
           btn.disabled = false;
-          btn.textContent = '📄 Create Word Document';
+          btn.textContent = '📄 Create PowerPoint';
           return;
         } catch (shareErr) {
           // user cancelled share sheet or it failed — fall through to download
         }
       }
 
-      // Fallback: plain download
-      saveAs(blob, filename);
+      // Fallback: plain download. pptxgenjs's blob comes back with JSZip's
+      // own generic (zip-like) default type rather than the real PowerPoint
+      // MIME type — re-wrap it explicitly, or some browsers/downloaders
+      // (confirmed: Samsung's) treat it as a zip and auto-extract it instead
+      // of saving one .pptx file.
+      const pptxBlob = new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+      const url = URL.createObjectURL(pptxBlob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       status.textContent = 'Downloaded. Look for it in Files, or share it from there.';
     } catch (err) {
       status.textContent = 'Something went wrong generating the document.';
       console.error(err);
     } finally {
       btn.disabled = false;
-      btn.textContent = '📄 Create Word Document';
+      btn.textContent = '📄 Create PowerPoint';
     }
   });
 
@@ -1222,6 +1315,12 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-title', 'include-headings', 'include-goal-outcomes']
     .forEach(id => document.getElementById(id).addEventListener('input', saveDraftFields));
 
+  // same fields (minus children-names, which updates the preview via
+  // syncSelectedNames instead, and include-goal-outcomes, which the preview
+  // doesn't reflect) also keep the live theme preview in sync
+  ['title', 'observer', 'date-input', 'notice', 'learning', 'extend', 'include-title', 'include-headings']
+    .forEach(id => document.getElementById(id).addEventListener('input', renderThemePreview));
+
   function confirmAndResetDraft() {
     if (!confirm("Clear everything you've entered and start fresh? This can't be undone.")) return;
     clearDraft();
@@ -1231,6 +1330,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   document.getElementById('reset-draft-btn-bottom').addEventListener('click', confirmAndResetDraft);
 
   loadDraft();
+  renderThemePreview();
   requestAnimationFrame(() => {
     ['notice', 'learning', 'extend'].forEach(id => autoGrowTextarea(document.getElementById(id)));
   });
