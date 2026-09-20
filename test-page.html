@@ -1135,8 +1135,13 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         }
       }
 
-      // Fallback: plain download
-      const url = URL.createObjectURL(blob);
+      // Fallback: plain download. pptxgenjs's blob comes back with JSZip's
+      // own generic (zip-like) default type rather than the real PowerPoint
+      // MIME type — re-wrap it explicitly, or some browsers/downloaders
+      // (confirmed: Samsung's) treat it as a zip and auto-extract it instead
+      // of saving one .pptx file.
+      const pptxBlob = new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+      const url = URL.createObjectURL(pptxBlob);
       const a = document.createElement('a');
       a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
