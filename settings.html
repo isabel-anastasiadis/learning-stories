@@ -114,13 +114,15 @@
   <div class="lock-msg" id="general-lock-msg" style="display:none;">Sign in and choose a file to edit these settings.</div>
 
   <div class="field">
-    <label for="saved-names-input">Tamariki names</label>
-    <form id="saved-names-form" onsubmit="return false;" style="display: flex; gap: 8px;">
-      <input type="text" id="saved-names-input" placeholder="Add a name (or several, separated by commas)">
+    <label for="saved-name-first-input">Tamariki names</label>
+    <form id="saved-names-form" onsubmit="return false;" style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <input type="text" id="saved-name-first-input" placeholder="First name" style="flex: 1 1 120px;">
+      <input type="text" id="saved-name-last-input" placeholder="Last name (optional)" style="flex: 1 1 120px;">
+      <input type="date" id="saved-name-dob-input" style="flex: 1 1 140px;">
       <button type="button" id="add-saved-name-btn" class="secondary-btn" style="flex-shrink: 0; white-space: nowrap;">Add</button>
     </form>
     <div class="name-chip-row" id="saved-names-chips"></div>
-    <div class="hint">Add each child's name once here — then tap to add them to a story instead of typing.</div>
+    <div class="hint">Add each child once here — then tap to add them to a story instead of typing. Last name and date of birth are both optional; date of birth lets the story show their age, and last name tells two children with the same first name apart.</div>
   </div>
 </div>
 
@@ -388,7 +390,7 @@
   }
 
   function applySettingsPayload(payload) {
-    savedNames = Array.isArray(payload.savedNames) ? payload.savedNames : [];
+    savedNames = (Array.isArray(payload.savedNames) ? payload.savedNames : []).map(normalizeNameEntry);
     sortNames();
     saveSavedNamesLocally();
     renderSavedNamesSettings();
@@ -652,13 +654,29 @@
   }
 
   // --- Tamariki names ---
+  // Each entry is {firstName, lastName, dob} — dob and lastName are both
+  // optional. Entries from before this shape existed were plain strings;
+  // normalizeNameEntry() upgrades those to the same shape on the fly, so
+  // an existing roster keeps working (just with no age/disambiguation)
+  // without needing a one-off migration step.
   const SAVED_NAMES_KEY = 'korero_saved_names';
-  function sortNames() { savedNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); }
+  function normalizeNameEntry(entry) {
+    if (typeof entry === 'string') return { firstName: entry, lastName: '', dob: '' };
+    return { firstName: entry.firstName || '', lastName: entry.lastName || '', dob: entry.dob || '' };
+  }
+  function sortNames() {
+    savedNames.sort((a, b) =>
+      a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+      a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+    );
+  }
   let savedNames = [];
-  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')); } catch (e) { savedNames = []; }
+  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')).map(normalizeNameEntry); } catch (e) { savedNames = []; }
   sortNames();
 
-  const savedNamesInput = document.getElementById('saved-names-input');
+  const firstNameInput = document.getElementById('saved-name-first-input');
+  const lastNameInput = document.getElementById('saved-name-last-input');
+  const dobInput = document.getElementById('saved-name-dob-input');
   const addSavedNameBtn = document.getElementById('add-saved-name-btn');
   const savedNamesChipsEl = document.getElementById('saved-names-chips');
 
@@ -680,13 +698,15 @@
 
   function renderSavedNamesSettings() {
     savedNamesChipsEl.innerHTML = '';
-    savedNames.forEach(name => {
+    savedNames.forEach((entry, i) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'name-chip';
-      chip.innerHTML = `<span>${name}</span><span class="x">×</span>`;
+      const fullName = entry.lastName ? `${entry.firstName} ${entry.lastName}` : entry.firstName;
+      const dobLabel = entry.dob ? ` · born ${entry.dob}` : '';
+      chip.innerHTML = `<span>${fullName}${dobLabel}</span><span class="x">×</span>`;
       chip.addEventListener('click', () => {
-        savedNames = savedNames.filter(n => n !== name);
+        savedNames.splice(i, 1);
         persistSavedNames();
         renderSavedNamesSettings();
       });
@@ -695,25 +715,27 @@
   }
   renderSavedNamesSettings();
 
-  function addSavedNamesFromInput() {
-    const raw = savedNamesInput.value;
-    const names = raw.split(',').map(s => capitalizeName(s)).filter(Boolean);
-    if (!names.length) return;
-    let changed = false;
-    names.forEach(name => {
-      if (!savedNames.includes(name)) { savedNames.push(name); changed = true; }
-    });
-    if (changed) {
+  function addSavedNameFromInputs() {
+    const firstName = capitalizeName(firstNameInput.value);
+    if (!firstName) return;
+    const lastName = capitalizeName(lastNameInput.value);
+    const dob = dobInput.value;
+    const isDuplicate = savedNames.some(n => n.firstName === firstName && n.lastName === lastName && n.dob === dob);
+    if (!isDuplicate) {
+      savedNames.push({ firstName, lastName, dob });
       sortNames();
       persistSavedNames();
       renderSavedNamesSettings();
     }
-    savedNamesInput.value = '';
+    firstNameInput.value = '';
+    lastNameInput.value = '';
+    dobInput.value = '';
+    firstNameInput.focus();
   }
-  addSavedNameBtn.addEventListener('click', addSavedNamesFromInput);
+  addSavedNameBtn.addEventListener('click', addSavedNameFromInputs);
   document.getElementById('saved-names-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    addSavedNamesFromInput();
+    addSavedNameFromInputs();
   });
 
   // --- AI settings ---
