@@ -1148,10 +1148,15 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     }
     addSection('NOTICE', opts.notice, true);
     addSection('RECOGNISE', opts.recognise, false);
+    const outcomes = opts.goalOutcomes || [];
+    outcomes.forEach(outcome => {
+      runs.push({ text: '\n•  ' + outcome, options: { bold: false, color: '000000', breakLine: false } });
+    });
     addSection('RESPOND', opts.respond, false);
     const baseFontPt = 13, baseLineHeightIn = 0.30, charsPerInchAt13 = 12.3;
     const charsPerLine = contentW * charsPerInchAt13;
-    const bodyLines = Math.ceil(opts.notice.length / charsPerLine) + Math.ceil(opts.recognise.length / charsPerLine) + Math.ceil(opts.respond.length / charsPerLine);
+    const outcomeLines = outcomes.reduce((sum, o) => sum + Math.ceil((o.length + 3) / charsPerLine), 0);
+    const bodyLines = Math.ceil(opts.notice.length / charsPerLine) + Math.ceil(opts.recognise.length / charsPerLine) + Math.ceil(opts.respond.length / charsPerLine) + outcomeLines;
     const totalLines = bodyLines + (includeHeadings ? 5 : 2);
     const neededHeightIn = totalLines * baseLineHeightIn;
     const fontSize = neededHeightIn > textBoxH ? Math.max(9, Math.floor(baseFontPt * (textBoxH / neededHeightIn))) : baseFontPt;
@@ -1226,17 +1231,18 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const extend = document.getElementById('extend').value.trim();
     const includeTitle = document.getElementById('include-title').checked;
     const includeHeadings = document.getElementById('include-headings').checked;
-    // NOTE: "include-goal-outcomes" has no effect in this pptx test page — the
-    // original docx flow listed goal outcomes as bullet points in Recognise;
-    // this pptx design doesn't have an equivalent spot for that yet, so the
-    // checkbox is left in place but currently ignored here.
     const scheme = PPTX_SCHEMES[schemeSelectEl.value];
     const goals = selectedGoalIds.map(id => WHARIKI_GOALS.find(x => x.id === id));
+    // Matches the old docx behaviour: when checked and at least one goal is
+    // selected, each selected goal's outcome text is listed as a bullet
+    // point appended after the Recognise body.
+    const includeGoalOutcomes = document.getElementById('include-goal-outcomes').checked && goals.length > 0;
+    const goalOutcomes = includeGoalOutcomes ? goals.map(g => g.outcome) : [];
 
     const opts = {
       title, observer, date: dateStr, names: childrenNames,
       notice: notice || ' ', recognise: learning || ' ', respond: extend || ' ',
-      includeTitle, includeHeadings, goals, photoDataUrls: photos
+      includeTitle, includeHeadings, goals, goalOutcomes, photoDataUrls: photos
     };
 
     const pres = new PptxGenJS();
