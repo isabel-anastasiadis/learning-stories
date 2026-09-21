@@ -308,10 +308,79 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   // --- Tamariki names: the saved roster (managed on settings.html) is used
   // here read-only, just to power suggestions while typing a story's names ---
   const SAVED_NAMES_KEY = 'korero_saved_names';
+  // Roster entries are {firstName, lastName, dob} — both lastName and dob
+  // are optional. Older-shape entries (plain strings, from before this
+  // richer shape existed) are upgraded on the fly here, matching the same
+  // normalizeNameEntry() logic settings.html uses, so an existing roster
+  // keeps working with no age/disambiguation rather than breaking.
+  function normalizeNameEntry(entry) {
+    if (typeof entry === 'string') return { firstName: entry, lastName: '', dob: '' };
+    return { firstName: entry.firstName || '', lastName: entry.lastName || '', dob: entry.dob || '' };
+  }
   let savedNames = [];
-  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')); } catch (e) { savedNames = []; }
-  savedNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')).map(normalizeNameEntry); } catch (e) { savedNames = []; }
+  savedNames.sort((a, b) =>
+    a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+    a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+  );
   let selectedNames = [];
+
+  // The display name for a roster entry — just the first name, unless
+  // another entry on the roster shares it, in which case the last-name
+  // initial is appended to tell them apart (e.g. "Sam H"). If two entries
+  // share a first name and neither has a last name on file, there's nothing
+  // to disambiguate with, so both just show the plain first name.
+  function getDisplayName(entry, allEntries) {
+    const hasDuplicateFirstName = allEntries.some(other =>
+      other !== entry && other.firstName.toLowerCase() === entry.firstName.toLowerCase()
+    );
+    if (hasDuplicateFirstName && entry.lastName) {
+      return `${entry.firstName} ${entry.lastName.charAt(0).toUpperCase()}`;
+    }
+    return entry.firstName;
+  }
+
+  // Recovers the roster entry (and so its DOB) behind a selected/restored
+  // display-name string, by re-computing every entry's current display name
+  // and matching against it — works the same whether the name was just
+  // picked from suggestions or restored from a saved draft. Returns null for
+  // a freely-typed name that isn't on the roster at all (expected — no DOB
+  // to show an age from in that case).
+  function findRosterEntryByDisplayName(displayName) {
+    return savedNames.find(entry => getDisplayName(entry, savedNames) === displayName) || null;
+  }
+
+  // "19mth" under 2 years, "2 1/4yr" from 2 years on — always rounded DOWN
+  // to the last fully-completed month/quarter, and computed against the
+  // story's own date field (not today), since a story is often written up
+  // after the observation happened.
+  function formatAge(dobStr, storyDateStr) {
+    if (!dobStr || !storyDateStr) return '';
+    const dob = new Date(dobStr + 'T00:00:00');
+    const storyDate = new Date(storyDateStr + 'T00:00:00');
+    if (isNaN(dob.getTime()) || isNaN(storyDate.getTime()) || storyDate < dob) return '';
+    let totalMonths = (storyDate.getFullYear() - dob.getFullYear()) * 12 + (storyDate.getMonth() - dob.getMonth());
+    if (storyDate.getDate() < dob.getDate()) totalMonths--;
+    if (totalMonths < 0) return '';
+    if (totalMonths < 24) return `${totalMonths}mth`;
+    const years = Math.floor(totalMonths / 12);
+    const quarter = Math.floor((totalMonths % 12) / 3);
+    return `${years}${['', ' ¼', ' ½', ' ¾'][quarter]}yr`;
+  }
+
+  // Builds the final "Name (age), Name (age), ..." string used both in the
+  // generated story and in the live preview, so the two can never disagree.
+  function buildNamesWithAges() {
+    const storyDateStr = dateInput.value;
+    return selectedNames.map(display => {
+      const entry = findRosterEntryByDisplayName(display);
+      if (entry && entry.dob) {
+        const age = formatAge(entry.dob, storyDateStr);
+        if (age) return `${display} (${age})`;
+      }
+      return display;
+    }).join(', ');
+  }
 
   const namesTyperInput = document.getElementById('children-names-typer');
   const nameSuggestionsEl = document.getElementById('name-suggestions');
@@ -383,6 +452,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     if (!namesInputFocused) return;
     const query = namesTyperInput.value.trim().toLowerCase();
     savedNames
+      .map(entry => getDisplayName(entry, savedNames))
       .filter(name => !selectedNames.includes(name))
       .filter(name => !query || name.toLowerCase().includes(query))
       .forEach(name => {
@@ -725,7 +795,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
     const metaEl = document.getElementById('preview-meta');
     const observerVal = document.getElementById('observer').value.trim();
-    const namesVal = document.getElementById('children-names').value.trim();
+    const namesVal = buildNamesWithAges();
     metaEl.style.color = '#' + scheme.pill;
     metaEl.innerHTML = '';
     const line1 = document.createElement('div');
@@ -1150,7 +1220,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const title = getEffectiveTitle();
     const observer = document.getElementById('observer').value.trim();
     const dateStr = formatDisplayDate(dateInput.value);
-    const childrenNames = document.getElementById('children-names').value.trim();
+    const childrenNames = buildNamesWithAges();
     const notice = document.getElementById('notice').value.trim();
     const learning = document.getElementById('learning').value.trim();
     const extend = document.getElementById('extend').value.trim();
