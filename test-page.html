@@ -239,9 +239,12 @@
   <div class="field" style="margin-top: 20px;">
     <label for="colour-scheme">Colour scheme</label>
     <select id="colour-scheme" style="width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px 13px; font-size: 16px; font-family: inherit; background: var(--card); color: var(--ink);"></select>
-    <div id="theme-preview" style="margin-top: 10px; width: 130px; aspect-ratio: 8.27 / 11.69; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; box-sizing: border-box; display: flex; flex-direction: column;">
+    <div id="theme-preview" style="margin-top: 10px; width: 190px; aspect-ratio: 8.27 / 11.69; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px; box-sizing: border-box; display: flex; flex-direction: column;">
+      <div id="preview-meta" style="font-size: 5px; font-style: italic; font-weight: 700; text-align: right; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+      <div id="preview-title" style="font-size: 9px; font-weight: 700; margin: 3px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
       <div id="preview-box" style="flex: 1; border-radius: 6px; padding: 5px; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;">
         <div id="preview-photos" style="display: flex; gap: 2px; flex-wrap: wrap;"></div>
+        <div id="preview-content" style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; overflow: hidden;"></div>
       </div>
       <div id="preview-stickers" style="display: flex; gap: 2px; margin-top: 4px; height: 14px;"></div>
     </div>
@@ -305,10 +308,79 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   // --- Tamariki names: the saved roster (managed on settings.html) is used
   // here read-only, just to power suggestions while typing a story's names ---
   const SAVED_NAMES_KEY = 'korero_saved_names';
+  // Roster entries are {firstName, lastName, dob} — both lastName and dob
+  // are optional. Older-shape entries (plain strings, from before this
+  // richer shape existed) are upgraded on the fly here, matching the same
+  // normalizeNameEntry() logic settings.html uses, so an existing roster
+  // keeps working with no age/disambiguation rather than breaking.
+  function normalizeNameEntry(entry) {
+    if (typeof entry === 'string') return { firstName: entry, lastName: '', dob: '' };
+    return { firstName: entry.firstName || '', lastName: entry.lastName || '', dob: entry.dob || '' };
+  }
   let savedNames = [];
-  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')); } catch (e) { savedNames = []; }
-  savedNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')).map(normalizeNameEntry); } catch (e) { savedNames = []; }
+  savedNames.sort((a, b) =>
+    a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' }) ||
+    a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' })
+  );
   let selectedNames = [];
+
+  // The display name for a roster entry — just the first name, unless
+  // another entry on the roster shares it, in which case the last-name
+  // initial is appended to tell them apart (e.g. "Sam H"). If two entries
+  // share a first name and neither has a last name on file, there's nothing
+  // to disambiguate with, so both just show the plain first name.
+  function getDisplayName(entry, allEntries) {
+    const hasDuplicateFirstName = allEntries.some(other =>
+      other !== entry && other.firstName.toLowerCase() === entry.firstName.toLowerCase()
+    );
+    if (hasDuplicateFirstName && entry.lastName) {
+      return `${entry.firstName} ${entry.lastName.charAt(0).toUpperCase()}`;
+    }
+    return entry.firstName;
+  }
+
+  // Recovers the roster entry (and so its DOB) behind a selected/restored
+  // display-name string, by re-computing every entry's current display name
+  // and matching against it — works the same whether the name was just
+  // picked from suggestions or restored from a saved draft. Returns null for
+  // a freely-typed name that isn't on the roster at all (expected — no DOB
+  // to show an age from in that case).
+  function findRosterEntryByDisplayName(displayName) {
+    return savedNames.find(entry => getDisplayName(entry, savedNames) === displayName) || null;
+  }
+
+  // "19mth" under 2 years, "2 1/4yr" from 2 years on — always rounded DOWN
+  // to the last fully-completed month/quarter, and computed against the
+  // story's own date field (not today), since a story is often written up
+  // after the observation happened.
+  function formatAge(dobStr, storyDateStr) {
+    if (!dobStr || !storyDateStr) return '';
+    const dob = new Date(dobStr + 'T00:00:00');
+    const storyDate = new Date(storyDateStr + 'T00:00:00');
+    if (isNaN(dob.getTime()) || isNaN(storyDate.getTime()) || storyDate < dob) return '';
+    let totalMonths = (storyDate.getFullYear() - dob.getFullYear()) * 12 + (storyDate.getMonth() - dob.getMonth());
+    if (storyDate.getDate() < dob.getDate()) totalMonths--;
+    if (totalMonths < 0) return '';
+    if (totalMonths < 24) return `${totalMonths}mth`;
+    const years = Math.floor(totalMonths / 12);
+    const quarter = Math.floor((totalMonths % 12) / 3);
+    return `${years}${['', ' 1/4', ' 1/2', ' 3/4'][quarter]}yr`;
+  }
+
+  // Builds the final "Name (age), Name (age), ..." string used both in the
+  // generated story and in the live preview, so the two can never disagree.
+  function buildNamesWithAges() {
+    const storyDateStr = dateInput.value;
+    return selectedNames.map(display => {
+      const entry = findRosterEntryByDisplayName(display);
+      if (entry && entry.dob) {
+        const age = formatAge(entry.dob, storyDateStr);
+        if (age) return `${display} (${age})`;
+      }
+      return display;
+    }).join(', ');
+  }
 
   const namesTyperInput = document.getElementById('children-names-typer');
   const nameSuggestionsEl = document.getElementById('name-suggestions');
@@ -330,6 +402,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   function syncSelectedNames() {
     childrenNamesHidden.value = selectedNames.join(', ');
     saveDraftFields();
+    if (typeof renderThemePreview === 'function') renderThemePreview();
   }
 
   function renderSelectedNameChips() {
@@ -379,6 +452,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     if (!namesInputFocused) return;
     const query = namesTyperInput.value.trim().toLowerCase();
     savedNames
+      .map(entry => getDisplayName(entry, savedNames))
       .filter(name => !selectedNames.includes(name))
       .filter(name => !query || name.toLowerCase().includes(query))
       .forEach(name => {
@@ -719,6 +793,26 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const scheme = PPTX_SCHEMES[schemeSelectEl.value];
     document.getElementById('preview-box').style.background = '#' + scheme.box;
 
+    const metaEl = document.getElementById('preview-meta');
+    const observerVal = document.getElementById('observer').value.trim();
+    const namesVal = buildNamesWithAges();
+    metaEl.style.color = '#' + scheme.pill;
+    metaEl.innerHTML = '';
+    const line1 = document.createElement('div');
+    line1.textContent = (observerVal ? `Observed by: ${observerVal}` : '') + (dateInput.value ? '  •  ' + formatDisplayDate(dateInput.value) : '');
+    const line2 = document.createElement('div');
+    line2.textContent = namesVal ? `Tamariki: ${namesVal}` : '';
+    metaEl.appendChild(line1);
+    metaEl.appendChild(line2);
+
+    const titleEl = document.getElementById('preview-title');
+    titleEl.style.color = '#' + scheme.title;
+    const includeTitleVal = document.getElementById('include-title').checked;
+    // Non-breaking space (not empty) when title is excluded — keeps its line
+    // reserving the same space rather than collapsing, matching the real
+    // pptx behaviour so someone can still write the title in by hand later.
+    titleEl.textContent = includeTitleVal ? (getEffectiveTitle() || 'Untitled story') : '\u00A0';
+
     const photosPreviewEl = document.getElementById('preview-photos');
     photosPreviewEl.innerHTML = '';
     photos.slice(0, 6).forEach(dataUrl => {
@@ -726,6 +820,31 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
       img.src = dataUrl;
       img.style.cssText = 'width: 24px; height: 18px; object-fit: cover; border-radius: 2px; border: 1px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.3);';
       photosPreviewEl.appendChild(img);
+    });
+
+    const includeHeadingsVal = document.getElementById('include-headings').checked;
+    const contentPreviewEl = document.getElementById('preview-content');
+    contentPreviewEl.innerHTML = '';
+    [
+      ['NOTICE', document.getElementById('notice').value.trim()],
+      ['RECOGNISE', document.getElementById('learning').value.trim()],
+      ['RESPOND', document.getElementById('extend').value.trim()]
+    ].forEach(([label, text]) => {
+      if (!includeHeadingsVal && !text) return;
+      const section = document.createElement('div');
+      if (includeHeadingsVal) {
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        labelEl.style.cssText = `font-size: 5px; font-weight: 700; background: #fff; color: #${scheme.pill}; padding: 0 2px; display: inline-block; margin-bottom: 1px;`;
+        section.appendChild(labelEl);
+      }
+      if (text) {
+        const bodyEl = document.createElement('div');
+        bodyEl.textContent = text;
+        bodyEl.style.cssText = 'font-size: 5px; color: #000; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        section.appendChild(bodyEl);
+      }
+      contentPreviewEl.appendChild(section);
     });
 
     const stickersPreviewEl = document.getElementById('preview-stickers');
@@ -1101,7 +1220,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     const title = getEffectiveTitle();
     const observer = document.getElementById('observer').value.trim();
     const dateStr = formatDisplayDate(dateInput.value);
-    const childrenNames = document.getElementById('children-names').value.trim();
+    const childrenNames = buildNamesWithAges();
     const notice = document.getElementById('notice').value.trim();
     const learning = document.getElementById('learning').value.trim();
     const extend = document.getElementById('extend').value.trim();
@@ -1265,6 +1384,12 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
   // via their own render functions, so they're not repeated here)
   ['title', 'observer', 'date-input', 'children-names', 'notice', 'learning', 'extend', 'include-title', 'include-headings', 'include-goal-outcomes']
     .forEach(id => document.getElementById(id).addEventListener('input', saveDraftFields));
+
+  // same fields (minus children-names, which updates the preview via
+  // syncSelectedNames instead, and include-goal-outcomes, which the preview
+  // doesn't reflect) also keep the live theme preview in sync
+  ['title', 'observer', 'date-input', 'notice', 'learning', 'extend', 'include-title', 'include-headings']
+    .forEach(id => document.getElementById(id).addEventListener('input', renderThemePreview));
 
   function confirmAndResetDraft() {
     if (!confirm("Clear everything you've entered and start fresh? This can't be undone.")) return;
