@@ -121,7 +121,17 @@
       <input type="date" id="saved-name-dob-input" style="flex: 1 1 140px;">
       <button type="button" id="add-saved-name-btn" class="secondary-btn" style="flex-shrink: 0; white-space: nowrap;">Add</button>
     </form>
-    <div class="name-chip-row" id="saved-names-chips"></div>
+    <table id="saved-names-table" style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--line);">
+          <th style="text-align: left; padding: 6px 8px 6px 0; font-weight: 600; color: #6b6355;">First name</th>
+          <th style="text-align: left; padding: 6px 8px; font-weight: 600; color: #6b6355;">Last name</th>
+          <th style="text-align: left; padding: 6px 8px; font-weight: 600; color: #6b6355;">Date of birth</th>
+          <th style="padding: 6px 0 6px 8px;"></th>
+        </tr>
+      </thead>
+      <tbody id="saved-names-tbody"></tbody>
+    </table>
     <div class="hint">Add each child once here — then tap to add them to a story instead of typing. Last name and date of birth are both optional; date of birth lets the story show their age, and last name tells two children with the same first name apart.</div>
   </div>
 </div>
@@ -671,14 +681,24 @@
     );
   }
   let savedNames = [];
-  try { savedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]')).map(normalizeNameEntry); } catch (e) { savedNames = []; }
+  let hadOldShapeEntries = false;
+  try {
+    const rawSavedNames = JSON.parse(safeGet(SAVED_NAMES_KEY, '[]'));
+    hadOldShapeEntries = rawSavedNames.some(entry => typeof entry === 'string');
+    savedNames = rawSavedNames.map(normalizeNameEntry);
+  } catch (e) { savedNames = []; }
   sortNames();
+  // If the stored roster had any old-shape (plain string) entries, write the
+  // upgraded shape straight back to local storage now — otherwise it only
+  // gets upgraded in storage whenever the roster is next edited, which could
+  // be a long time (or never) after this code starts normalizing on load.
+  if (hadOldShapeEntries) saveSavedNamesLocally();
 
   const firstNameInput = document.getElementById('saved-name-first-input');
   const lastNameInput = document.getElementById('saved-name-last-input');
   const dobInput = document.getElementById('saved-name-dob-input');
   const addSavedNameBtn = document.getElementById('add-saved-name-btn');
-  const savedNamesChipsEl = document.getElementById('saved-names-chips');
+  const savedNamesTbodyEl = document.getElementById('saved-names-tbody');
 
   function saveSavedNamesLocally() {
     try { localStorage.setItem(SAVED_NAMES_KEY, JSON.stringify(savedNames)); } catch (e) { /* ignore */ }
@@ -696,21 +716,88 @@
     ).join(' ');
   }
 
+  // Table cells are real inputs, not plain text — this lets an existing
+  // roster (especially one migrated from the old name-only shape) be filled
+  // in directly, one field at a time, rather than needing every child
+  // removed and re-added from scratch just to add a last name or DOB.
+  //
+  // Edits save on 'change' (i.e. once a field is actually committed — blur
+  // for text, a picked/typed date for the date input) rather than on every
+  // keystroke. Deliberately NOT re-sorting or re-rendering the table on
+  // every edit, even though editing a first name can change where it
+  // belongs alphabetically — doing that mid-edit would shift other rows
+  // under the person's cursor while they're still working through the
+  // list. The table re-settles into order on the next full render (adding
+  // or removing a row, or reloading the page).
+  const savedNameFieldStyle = 'width: 100%; box-sizing: border-box; border: 1px solid transparent; border-radius: 6px; padding: 5px 6px; font-size: 14px; font-family: inherit; background: transparent; color: var(--ink);';
+
   function renderSavedNamesSettings() {
-    savedNamesChipsEl.innerHTML = '';
+    savedNamesTbodyEl.innerHTML = '';
     savedNames.forEach((entry, i) => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'name-chip';
-      const fullName = entry.lastName ? `${entry.firstName} ${entry.lastName}` : entry.firstName;
-      const dobLabel = entry.dob ? ` · born ${entry.dob}` : '';
-      chip.innerHTML = `<span>${fullName}${dobLabel}</span><span class="x">×</span>`;
-      chip.addEventListener('click', () => {
+      const row = document.createElement('tr');
+      row.style.borderBottom = '1px solid var(--line)';
+
+      const firstCell = document.createElement('td');
+      firstCell.style.padding = '4px 8px 4px 0';
+      const firstInput = document.createElement('input');
+      firstInput.type = 'text';
+      firstInput.value = entry.firstName;
+      firstInput.style.cssText = savedNameFieldStyle;
+      firstInput.addEventListener('change', () => {
+        const value = capitalizeName(firstInput.value);
+        if (!value) { firstInput.value = entry.firstName; return; } // first name can't be blanked out
+        entry.firstName = value;
+        firstInput.value = value;
+        persistSavedNames();
+      });
+      firstCell.appendChild(firstInput);
+      row.appendChild(firstCell);
+
+      const lastCell = document.createElement('td');
+      lastCell.style.padding = '4px 8px';
+      const lastInput = document.createElement('input');
+      lastInput.type = 'text';
+      lastInput.value = entry.lastName || '';
+      lastInput.style.cssText = savedNameFieldStyle;
+      lastInput.addEventListener('change', () => {
+        const value = capitalizeName(lastInput.value);
+        entry.lastName = value;
+        lastInput.value = value;
+        persistSavedNames();
+      });
+      lastCell.appendChild(lastInput);
+      row.appendChild(lastCell);
+
+      const dobCell = document.createElement('td');
+      dobCell.style.padding = '4px 8px';
+      const dobField = document.createElement('input');
+      dobField.type = 'date';
+      dobField.value = entry.dob || '';
+      dobField.style.cssText = savedNameFieldStyle;
+      dobField.addEventListener('change', () => {
+        entry.dob = dobField.value;
+        persistSavedNames();
+      });
+      dobCell.appendChild(dobField);
+      row.appendChild(dobCell);
+
+      const removeCell = document.createElement('td');
+      removeCell.style.padding = '4px 0 4px 8px';
+      removeCell.style.textAlign = 'right';
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'secondary-btn';
+      removeBtn.style.cssText = 'padding: 5px 10px; white-space: nowrap;';
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', () => {
         savedNames.splice(i, 1);
         persistSavedNames();
         renderSavedNamesSettings();
       });
-      savedNamesChipsEl.appendChild(chip);
+      removeCell.appendChild(removeBtn);
+      row.appendChild(removeCell);
+
+      savedNamesTbodyEl.appendChild(row);
     });
   }
   renderSavedNamesSettings();
