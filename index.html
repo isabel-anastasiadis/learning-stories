@@ -823,6 +823,7 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     });
 
     const includeHeadingsVal = document.getElementById('include-headings').checked;
+    const includeGoalOutcomesVal = document.getElementById('include-goal-outcomes').checked && selectedGoalIds.length > 0;
     const contentPreviewEl = document.getElementById('preview-content');
     contentPreviewEl.innerHTML = '';
     [
@@ -845,6 +846,17 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
         section.appendChild(bodyEl);
       }
       contentPreviewEl.appendChild(section);
+
+      // Goal outcome bullets go right after Recognise, same as the real doc
+      if (label === 'RECOGNISE' && includeGoalOutcomesVal) {
+        selectedGoalIds.forEach(id => {
+          const g = WHARIKI_GOALS.find(x => x.id === id);
+          const bulletEl = document.createElement('div');
+          bulletEl.textContent = '•  ' + g.outcome;
+          bulletEl.style.cssText = 'font-size: 5px; color: #000; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+          contentPreviewEl.appendChild(bulletEl);
+        });
+      }
     });
 
     const stickersPreviewEl = document.getElementById('preview-stickers');
@@ -1138,19 +1150,25 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
 
   function pptxAddContent(slide, opts, scheme, contentX, contentW, textBoxY, textBoxH, includeHeadings) {
     const runs = [];
-    function addSection(label, body, first) {
+    // NOTE: a run whose TEXT ITSELF starts with '\n' gets split by pptxgenjs
+    // into an empty paragraph plus the real content, rendering as a spurious
+    // extra blank line. The reliable way to start a new paragraph is
+    // breakLine:true as an option on the PRECEDING run, never a leading \n
+    // embedded in the following run's text — every run below follows that
+    // rule, including the bullets.
+    function addSection(label, body, first, breakAfterBody) {
       if (includeHeadings) {
         runs.push({ text: (first ? '' : '\n\n') + ` ${label} `, options: { bold: true, color: scheme.pill, highlight: 'FFFFFF', breakLine: true } });
       } else if (!first) {
         runs.push({ text: '\n\n', options: { breakLine: false } });
       }
-      runs.push({ text: body, options: { bold: false, color: '000000', breakLine: false } });
+      runs.push({ text: body, options: { bold: false, color: '000000', breakLine: !!breakAfterBody } });
     }
-    addSection('NOTICE', opts.notice, true);
-    addSection('RECOGNISE', opts.recognise, false);
     const outcomes = opts.goalOutcomes || [];
+    addSection('NOTICE', opts.notice, true);
+    addSection('RECOGNISE', opts.recognise, false, outcomes.length > 0);
     outcomes.forEach(outcome => {
-      runs.push({ text: '\n•  ' + outcome, options: { bold: false, color: '000000', breakLine: false } });
+      runs.push({ text: '•  ' + outcome, options: { bold: false, color: '000000', breakLine: true } });
     });
     addSection('RESPOND', opts.respond, false);
     const baseFontPt = 13, baseLineHeightIn = 0.30, charsPerInchAt13 = 12.3;
@@ -1392,9 +1410,8 @@ Return ONLY the corrected text, with no preamble, explanation, or quotation mark
     .forEach(id => document.getElementById(id).addEventListener('input', saveDraftFields));
 
   // same fields (minus children-names, which updates the preview via
-  // syncSelectedNames instead, and include-goal-outcomes, which the preview
-  // doesn't reflect) also keep the live theme preview in sync
-  ['title', 'observer', 'date-input', 'notice', 'learning', 'extend', 'include-title', 'include-headings']
+  // syncSelectedNames instead) also keep the live theme preview in sync
+  ['title', 'observer', 'date-input', 'notice', 'learning', 'extend', 'include-title', 'include-headings', 'include-goal-outcomes']
     .forEach(id => document.getElementById(id).addEventListener('input', renderThemePreview));
 
   function confirmAndResetDraft() {
